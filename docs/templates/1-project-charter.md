@@ -32,7 +32,7 @@
 
 {{ List the team members in the table below }}
 
-{{ For GitHub username enter it in the format of `@username` }}
+{{ For GitHub username enter it in the format of @username }}
 
 | No. | Full name | GitHub username | 
 | --- | --------- | ----------------|
