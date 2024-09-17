@@ -30,16 +30,16 @@
 
 ## Team
 
-{{ List the team members in the table below }}
+{{ List the team members in the table below. For group enter "IT 1", "IT 2", "IT 3" or "Exchange" }}
 
 {{ For GitHub username enter it in the format of @username }}
 
-| No. | Full name | GitHub username | 
-| --- | --------- | ----------------|
-| 1.  |           |                 |
-| 2.  |           |                 |
-| 3.  |           |                 |
-| 4.  |           |                 |
-| 5.  |           |                 |
+| No. | Full name | Group | GitHub username | 
+| --- | --------- | ----- | ----------------|
+| 1.  |           |       |          |
+| 2.  |           |       |          |
+| 3.  |           |       |          |
+| 4.  |           |       |          |
+| 5.  |           |       |          |
 
 The whole team will participate in seminars on {{ specify which seminar session your team will attend - e.g. "Tuesdays (starting at 14:00)"}}.
