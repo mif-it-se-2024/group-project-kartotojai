@@ -21,7 +21,7 @@ jobs:
       uses: classroom-resources/autograding-command-grader@v1
       with:
         test-name: check-project-charter
-        setup-command: '.github/workflows/assignment-feedback/1-project-charter.sh'
+        setup-command: 'chmod +x .github/workflows/assignment-feedback/1-project-charter.sh'
         command: '.github/workflows/assignment-feedback/1-project-charter.sh'
         timeout: 1
     - name: Autograding Reporter
