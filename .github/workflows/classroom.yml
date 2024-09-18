@@ -1,0 +1,31 @@
+name: Assignment Feedback Tests
+
+'on':
+- repository_dispatch
+
+permissions:
+  checks: write
+  actions: read
+  contents: read
+
+jobs:
+  run-assignment-feedback-checks:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: check-project-charter
+      id: check-project-charter
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: check-project-charter
+        setup-command: '.github/workflows/assignment-feedback/1-project-charter.sh'
+        command: '.github/workflows/assignment-feedback/1-project-charter.sh'
+        timeout: 1
+    - name: Autograding Reporter
+      uses: classroom-resources/autograding-grading-reporter@v1
+      env:
+        CHECK-PROJECT-CHARTER_RESULTS: '${{steps.check-project-charter.outputs.result}}'
+      with:
+        runners: check-project-charter
