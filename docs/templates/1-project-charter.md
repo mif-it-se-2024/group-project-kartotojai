@@ -13,15 +13,29 @@ User registration, order placement and matching, order placement and matching, r
 Order Matching System - a system where users can register, log in, and interact with a market for buying and selling financial assets. A core component responsible for efficiently matching buy and sell orders based on criteria like price, quantity and time.
 
 ## Milestones
+1. Skeleton Creation
+Set up the command line program structure with directories, files, and class definitions (orders, trades, order book).
 
-1. Project Setup and Requirements Gathering
-2. User Registration and Authentication
-3. Implement Order Placement System
-4. Build the Matching Engine
-5. Trade Execution and Recording
-6. Real Time Order Book Updates
-7. Error Handling and Edge Cases
-8. Final Testing and Optimization
+2. Implement Order Type Input
+Develop command line input for different order types (limit, market, stop).
+Validate input directly from the console and handle incorrect inputs nicely with prompts or error messages.
+
+(different order types will have different implimentation phases)
+Define Limit Order Structure
+Command line Input Handling
+Order Book Integration
+Matching Logic for Limit Orders
+
+4. Order Matching Logic
+Implement the matching algorithm to process orders through console inputs.
+Ensure correct order type handling and print the matching results directly to the console (matched orders, partial fills).
+
+5. Integration of Match and Trade Storage
+Store matched trades in a file or in memory structure (lists, dictionaries).
+Implement a report print function to output trade results to the console or save to a file.
+
+6. Console-based Order Book Update
+Regularly display the current state of the order book in the console (maybe after each transaction or user command?).
    
 | No. | Target date  | Description |
 | --- | ----------- | ----------- |
