@@ -2,56 +2,33 @@
 
 ## Business Need / Project Objectives
 
-Financial exchanges replicate actual markets. It involves real world challenges like data accuracy, performance etc. It provides a strong practical foundation. The project will likely involve algorithms for matching buyers and sellers, pricing models, and possibly transaction logging. This helps with problem solving skills.
+We need a robust system that can handle real time trading activities efficiently. The platform should address critical aspects like order matching, transaction logging, and seamless handling of various order types (limit, market, stop). Data accuracy, performance, and scalability are essential to ensure smooth operations, even under high volumes. Our goal is to have a platform that mirrors real world financial markets, offering users a reliable and secure environment for trading. The system should not only focus on functionality but also provide opportunities for growth and adaptation as the market evolves.
 
 ## Scope
 
-User registration, order placement and matching, order placement and matching, real time data handling, transaction handling, database management, 
+The focus of this project will be on developing a simplified yet robust version of the system. The project will concentrate on creating a console based application for interacting with the system. The goal is to prioritize quality over quantity by ensuring the core functionality order matching, transaction handling, and data management works seamlessly. 
 
 ## Deliverables
 
-Order Matching System - a system where users can register, log in, and interact with a market for buying and selling financial assets. A core component responsible for efficiently matching buy and sell orders based on criteria like price, quantity and time.
+Console-Based Trading Interface: A command line interface that allows users to place buy/sell orders directly. All user interactions will be handled through the console.
+Order Matching System: A core component that matches buy and sell orders based on criteria such as price, quantity, and time. The system will execute trades and update the order book directly in the console.
+Transaction Logging: A system that logs all completed trades and stores them either in memory or a local file. The user will be able to access and review past transactions through the console.
+Order Book Management: An order book that updates after each transaction or order placement. The current state of the order book (open buy/sell orders) will be displayed in the console.
+Trade and Order Report: A function to print a summary of executed trades and the current state of the order book, either to the console or a text file for easy analysis.
 
 ## Milestones
-1. Skeleton Creation
-Set up the command line program structure with directories, files, and class definitions (orders, trades, order book).
-
-2. Implement Order Type Input
-Develop command line input for different order types (limit, market, stop).
-Validate input directly from the console and handle incorrect inputs nicely with prompts or error messages.
-
-(different order types will have different implimentation phases)
-Define Limit Order Structure
-Command line Input Handling
-Order Book Integration
-Matching Logic for Limit Orders
-
-4. Order Matching Logic
-Implement the matching algorithm to process orders through console inputs.
-Ensure correct order type handling and print the matching results directly to the console (matched orders, partial fills).
-
-5. Integration of Match and Trade Storage
-Store matched trades in a file or in memory structure (lists, dictionaries).
-Implement a report print function to output trade results to the console or save to a file.
-
-6. Console-based Order Book Update
-Regularly display the current state of the order book in the console (maybe after each transaction or user command?).
-   
-| No. | Target date  | Description |
-| --- | ----------- | ----------- |
-| 1.  | 2024-10-07 | Define the core features (order types, matching system). Set up the project environment and database schema. |
-| 2.  | 2024-10-21 | Build order submission forms for orders. Validate orders before they are submitted to the system. |
-| 3.  | 2024-11-04 | Develop the core logic to match buy and sell orders. Implement partial matching and ensure unmatched orders are saved. |
-| 4.  | 2024-11-18 | Create the system to execute trades and update user balances. Store trade history and adjust or remove orders from the order book. |
-| 5.  | 2024-11-30 | Implement real-time order book updates. Ensure live data is updated immediately after new trades and orders. |
-| 6.  |  2024-12-07 | Handle edge cases (e.g., partial orders, insufficient funds). Make sure all-or-nothing orders work correctly. |
-| 7.  |  2024-12-14 | Test the system thoroughly with real and edge-case scenarios. Optimize performance and finalize all documentation. |
+1.	2024-10-07	Skeleton creation: Set up the command-line program structure with directories, files, and class definitions (orders, trades, order book).
+2.	2024-10-21	Implement order type input: Develop input handling for different order types (limit, market, stop). Validate input and handle incorrect entries with error messages.
+3.	2024-11-04	Order matching logic: Implement matching algorithms to process orders. Display matched orders and partial fills directly in the console.
+4.	2024-11-18	Integration of match and trade storage: Store matched trades in memory or file. Implement trade report print functionality.
+5.	2024-11-30	Console-based order book update: Regularly display the current state of the order book after each transaction or user command.
+6.	2024-12-07	Handle edge cases: Implement handling for partial orders, insufficient funds, and all-or-nothing orders. Ensure accurate execution.
 
 ## Assumptions and risks
 
 Assumptions:
 The project requirements are well defined and wont undergo significant changes after the planning phase. Any major change requests after development starts may cause delays.
-It is assumed that the development environment (tech stack, libraries, database systems) is stable and no major upgrades or changes will be needed mid-project.
+It is assumed that the development environment is stable and no major upgrades or changes will be needed mid project.
 
 Risks:
 Handling various order types (limit, market, all-or-nothing, partial fills) might introduce complex scenarios that take longer to implement and test, potentially causing delays.
