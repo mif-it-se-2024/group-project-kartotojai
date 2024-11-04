@@ -1,0 +1,14 @@
+{
+    "AAPL": {
+        "ticker": "AAPL",
+        "price": 140.00,
+        "market_cap": "2.5T",
+        "dividend_yield": "0.6%"
+    },
+    "MSFT": {
+        "ticker": "MSFT",
+        "price": 300.00,
+        "market_cap": "2.0T",
+        "dividend_yield": "0.8%"
+    }
+}
