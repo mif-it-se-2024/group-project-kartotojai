@@ -1,80 +1,192 @@
-import json
-from datetime import datetime
+# order_book.py
+from collections import deque
 
-class OrderExecution:
-    def __init__(self, stock_info, account):
-        self.stock_info = stock_info
-        self.account = account
-        self.load_orders()
+class OrderBook:
+    def __init__(self):
+        self.buy_orders = {}   # {ticker: deque of buy orders}
+        self.sell_orders = {}  # {ticker: deque of sell orders}
+        self.last_trade_price = {}  # {ticker: last execution price}
 
-    def load_orders(self):
-        try:
-            with open('orders.json', 'r') as file:
-                self.orders = json.load(file)
-        except FileNotFoundError:
-            self.orders = []
+    def get_best_price(self, action, ticker):
+        if action == 'buy':
+            # Best price is the lowest price from sell limit orders
+            if ticker in self.sell_orders:
+                limit_orders = [o for o in self.sell_orders[ticker] if o['order_type'] == 'limit']
+                if limit_orders:
+                    return min(o['price'] for o in limit_orders)
+        elif action == 'sell':
+            # Best price is the highest price from buy limit orders
+            if ticker in self.buy_orders:
+                limit_orders = [o for o in self.buy_orders[ticker] if o['order_type'] == 'limit']
+                if limit_orders:
+                    return max(o['price'] for o in limit_orders)
+        return self.last_trade_price.get(ticker)
 
-    def save_orders(self):
-        with open('orders.json', 'w') as file:
-            json.dump(self.orders, file, indent=4)
+    def add_order(self, order, account_manager):
+        ticker = order['ticker']
+        account_id = order['account_id']
+        account = account_manager.get_account(account_id)
 
-    def place_order(self, action, ticker, quantity, order_type='market', price=None):
-        ticker = ticker.upper()
-        stock = self.stock_info.get_stock(ticker)
-        if not stock:
-            print("Invalid stock ticker.")
-            return
+        # Validate order
+        if order['quantity'] <= 0:
+            print("Error: Quantity must be positive.")
+            return False
+        if order['order_type'] not in ['market', 'limit']:
+            print("Error: Order type must be 'market' or 'limit'.")
+            return False
+        if order['order_type'] == 'limit' and (order['price'] is None or order['price'] <= 0):
+            print("Error: Limit orders require a positive price.")
+            return False
 
-        order = {
-            'id': len(self.orders) + 1,
-            'action': action,
-            'ticker': ticker,
-            'quantity': quantity,
-            'order_type': order_type,
-            'price': price,
-            'timestamp': datetime.now().isoformat(),
-            'status': 'pending'
-        }
-
-        if order_type == 'market':
-            self.execute_order(order, stock['price'])
+        # Validate sell orders: check if the account has enough shares
+        if order['action'] == 'sell':
+            positions = account['positions']
+            if positions.get(ticker, 0) < order['quantity']:
+                print(f"Error: Account {account_id} does not have enough shares to sell.")
+                return False  # Do not add the order
+        elif order['action'] == 'buy':
+            pass  # No validation needed for buy orders here
         else:
-            self.orders.append(order)
-            self.save_orders()
-            print(f"Limit/Stop order placed: {order}")
+            print(f"Error: Unknown action '{order['action']}'")
+            return False
 
-    def execute_order(self, order, execution_price):
-        total_cost = execution_price * order['quantity']
+        # Add order to the appropriate order book
         if order['action'] == 'buy':
-            if self.account.balance >= total_cost:
-                self.account.balance -= total_cost
-                self.account.add_position(order['ticker'], order['quantity'], execution_price)
-                order['status'] = 'executed'
-                self.account.add_transaction(order)
-                print(f"Bought {order['quantity']} shares of {order['ticker']} at {execution_price}")
-            else:
-                print("Insufficient balance.")
+            if ticker not in self.buy_orders:
+                self.buy_orders[ticker] = deque()
+            self.buy_orders[ticker].append(order)
         elif order['action'] == 'sell':
-            if self.account.has_position(order['ticker'], order['quantity']):
-                self.account.balance += total_cost
-                self.account.remove_position(order['ticker'], order['quantity'])
-                order['status'] = 'executed'
-                self.account.add_transaction(order)
-                print(f"Sold {order['quantity']} shares of {order['ticker']} at {execution_price}")
-            else:
-                print("Insufficient shares to sell.")
-        self.save_orders()
-        self.account.save_account()
+            if ticker not in self.sell_orders:
+                self.sell_orders[ticker] = deque()
+            self.sell_orders[ticker].append(order)
 
-    def check_pending_orders(self):
-        for order in self.orders:
-            if order['status'] == 'pending':
-                stock = self.stock_info.get_stock(order['ticker'])
-                if order['order_type'] == 'limit':
-                    if (order['action'] == 'buy' and stock['price'] <= order['price']) or \
-                       (order['action'] == 'sell' and stock['price'] >= order['price']):
-                        self.execute_order(order, order['price'])
-                elif order['order_type'] == 'stop':
-                    if (order['action'] == 'buy' and stock['price'] >= order['price']) or \
-                       (order['action'] == 'sell' and stock['price'] <= order['price']):
-                        self.execute_order(order, stock['price'])
+        print("Order added to the order book.")
+        return True
+
+    def match_orders(self, ticker, account_manager):
+        if ticker not in self.buy_orders or ticker not in self.sell_orders:
+            return  # No matching possible
+
+        buy_orders = self.buy_orders[ticker]
+        sell_orders = self.sell_orders[ticker]
+
+        # Sort orders: market orders before limit orders, then by price and timestamp
+        buy_orders = deque(sorted(buy_orders, key=lambda o: (o['order_type'] != 'market', -o.get('price', 0) if o.get('price') else 0, o['timestamp'])))
+        sell_orders = deque(sorted(sell_orders, key=lambda o: (o['order_type'] != 'market', o.get('price', float('inf')) if o.get('price') else float('inf'), o['timestamp'])))
+
+        while buy_orders:
+            buy_order = buy_orders[0]
+            match_found = False
+
+            for sell_order in list(sell_orders):
+
+                if buy_order['account_id'] == sell_order['account_id']:
+                    continue  # Skip matching orders from the same account
+                
+                execution_price = None
+
+                # Determine execution price
+                if buy_order['order_type'] == 'market' and sell_order['order_type'] == 'market':
+                    # Use last trade price or cannot match
+                    execution_price = self.last_trade_price.get(ticker)
+                    if execution_price is None:
+                        print(f"Cannot match market orders for {ticker} without a reference price.")
+                        continue  # Cannot determine price
+                elif buy_order['order_type'] == 'market' and sell_order['order_type'] == 'limit':
+                    execution_price = sell_order['price']
+                elif buy_order['order_type'] == 'limit' and sell_order['order_type'] == 'market':
+                    execution_price = buy_order['price']
+                elif buy_order['order_type'] == 'limit' and sell_order['order_type'] == 'limit':
+                    if buy_order['price'] >= sell_order['price']:
+                        execution_price = sell_order['price']
+                else:
+                    continue  # Invalid order types
+
+                if execution_price is None:
+                    continue  # Try next sell order
+
+                # Determine quantity to execute
+                exec_quantity = min(buy_order['quantity'], sell_order['quantity'])
+
+                # Update buyer's account
+                buyer_account = account_manager.get_account(buy_order['account_id'])
+                total_cost = exec_quantity * execution_price
+
+                if buyer_account['balance'] >= total_cost:
+                    buyer_account['balance'] -= total_cost
+                    buyer_positions = buyer_account['positions']
+                    buyer_positions[ticker] = buyer_positions.get(ticker, 0) + exec_quantity
+                    account_manager.update_account(buy_order['account_id'], buyer_account)
+                else:
+                    print(f"Account {buy_order['account_id']} has insufficient balance.")
+                    buy_orders.popleft()
+                    match_found = True
+                    break  # Proceed to next buy order
+
+                # Update seller's account
+                seller_account = account_manager.get_account(sell_order['account_id'])
+                seller_positions = seller_account['positions']
+                if seller_positions.get(ticker, 0) >= exec_quantity:
+                    seller_positions[ticker] -= exec_quantity
+                    seller_account['balance'] += total_cost
+                    if seller_positions[ticker] == 0:
+                        del seller_positions[ticker]
+                    account_manager.update_account(sell_order['account_id'], seller_account)
+                else:
+                    print(f"Account {sell_order['account_id']} has insufficient shares.")
+                    sell_orders.remove(sell_order)
+                    continue  # Try next sell order
+
+                # Update order quantities
+                buy_order['quantity'] -= exec_quantity
+                sell_order['quantity'] -= exec_quantity
+
+                # Update last trade price
+                self.last_trade_price[ticker] = execution_price
+
+                print(f"Executed {exec_quantity} shares of {ticker} at {execution_price} between Account {buy_order['account_id']} (buy) and Account {sell_order['account_id']} (sell).")
+
+                # Remove filled orders
+                if sell_order['quantity'] == 0:
+                    sell_orders.remove(sell_order)
+                if buy_order['quantity'] == 0:
+                    buy_orders.popleft()
+                    match_found = True
+                    break  # Proceed to next buy order
+
+                match_found = True
+                break  # Proceed to next buy order
+
+            if not match_found:
+                break  # No matching sell order found
+
+        self.buy_orders[ticker] = buy_orders
+        self.sell_orders[ticker] = sell_orders
+
+    def display_order_book(self):
+        print("Order Book:")
+        for ticker in set(self.buy_orders.keys()).union(self.sell_orders.keys()):
+            print(f"\nTicker: {ticker}")
+            print("Buy Orders:")
+            for order in self.buy_orders.get(ticker, []):
+                price_display = 'Market' if order['order_type'] == 'market' else order['price']
+                print(f"  Account {order['account_id']} wants to buy {order['quantity']} at {price_display}")
+            print("Sell Orders:")
+            for order in self.sell_orders.get(ticker, []):
+                price_display = 'Market' if order['order_type'] == 'market' else order['price']
+                print(f"  Account {order['account_id']} wants to sell {order['quantity']} at {price_display}")
+
+    def get_best_bid_ask(self, ticker):
+        # Get best bid (highest buy price) and best ask (lowest sell price)
+        best_bid = None
+        best_ask = None
+
+        if ticker in self.buy_orders:
+            limit_buy_orders = [o for o in self.buy_orders[ticker] if o['order_type'] == 'limit']
+            if limit_buy_orders:
+                best_bid = max(o['price'] for o in limit_buy_orders)
+        if ticker in self.sell_orders:
+            limit_sell_orders = [o for o in self.sell_orders[ticker] if o['order_type'] == 'limit']
+            if limit_sell_orders:
+                best_ask = min(o['price'] for o in limit_sell_orders)
+        return best_bid, best_ask
