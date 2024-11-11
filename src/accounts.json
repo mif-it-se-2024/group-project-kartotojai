@@ -1,0 +1,20 @@
+{
+    "1": {
+        "balance": 8200.0,
+        "positions": {
+            "AAPL": 112.0
+        }
+    },
+    "2": {
+        "balance": 11800.0,
+        "positions": {
+            "AAPL": 88.0
+        }
+    },
+    "3": {
+        "balance": 10000.0,
+        "positions": {
+            "AAPL": 100
+        }
+    }
+}
