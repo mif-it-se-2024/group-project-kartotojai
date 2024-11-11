@@ -1,74 +1,123 @@
+# main.py
 from stock_info import StockInfo
-from order_execution import OrderExecution
-from account import Account
+from account import AccountManager
+from order_execution import OrderBook
+from datetime import datetime
 
 def main():
     stock_info = StockInfo()
-    account = Account()
-    order_execution = OrderExecution(stock_info, account)
+    account_manager = AccountManager()
+    order_execution = OrderBook()
 
+    print("Welcome to the Stock Trading Simulator!")
+    print("Type 'help' to see available commands.")
     while True:
-        command = input("Enter a command (type 'help' for options): ").strip().lower()
-        if command == 'help':
+        command = input("Enter a command: ").strip()
+        parts = command.split()
+        if not parts:
+            print("Please enter a command. Type 'help' to see available commands.")
+            continue
+
+        cmd = parts[0].lower()
+
+        if cmd == 'help':
             print("""
 Available Commands:
-- buy <ticker> <quantity> [order_type] [price]
-- sell <ticker> <quantity> [order_type] [price]
-- stock info
-- check_balance
-- show_orders
-- cancel_order <order_id>
+- buy <account_id> <ticker> <quantity> [order_type] [price]
+- sell <account_id> <ticker> <quantity> [order_type] [price]
+- stock info [<ticker>]
+- account info <account_id>
+- order book
 - exit
 """)
-        elif command.startswith('buy'):
-            args = command.split()
-            if len(args) >= 3:
-                ticker = args[1]
-                quantity = int(args[2])
-                if len(args) == 3:
-                    order_execution.place_order('buy', ticker, quantity)
-                elif len(args) >= 4:
-                    order_type = args[3]
-                    price = float(args[4]) if len(args) == 5 else None
-                    order_execution.place_order('buy', ticker, quantity, order_type, price)
-            else:
-                print("Invalid buy command.")
-        elif command.startswith('sell'):
-            args = command.split()
-            if len(args) >= 3:
-                ticker = args[1]
-                quantity = int(args[2])
-                if len(args) == 3:
-                    order_execution.place_order('sell', ticker, quantity)
-                elif len(args) >= 4:
-                    order_type = args[3]
-                    price = float(args[4]) if len(args) == 5 else None
-                    order_execution.place_order('sell', ticker, quantity, order_type, price)
-            else:
-                print("Invalid sell command.")
-        elif command == 'stock info':
-            stock_info.display_stocks()
-        elif command == 'check_balance':
-            account.display_balance()
-        elif command == 'show_orders':
-            print("Active Orders:")
-            for order in order_execution.orders:
-                print(order)
-        elif command.startswith('cancel_order'):
-            args = command.split()
-            if len(args) == 2:
-                order_id = int(args[1])
-                order_execution.cancel_order(order_id)
-            else:
-                print("Invalid cancel_order command.")
-        elif command == 'exit':
-            print("Exiting.")
+        elif cmd == 'exit':
+            print("Exiting the simulator.")
             break
-        else:
-            print("Unknown command.")
+        elif cmd == 'stock':
+            if len(parts) >= 2 and parts[1].lower() == 'info':
+                if len(parts) == 3:
+                    ticker = parts[2].upper()
+                    stock_info.display_stock_info(ticker, order_execution)
+                else:
+                    stock_info.display_stocks()
+            else:
+                print("Invalid command. Usage: stock info [<ticker>]")
+        elif cmd == 'account':
+            if len(parts) == 3 and parts[1].lower() == 'info':
+                account_id = parts[2]
+                account_manager.display_account(account_id)
+            else:
+                print("Invalid command. Usage: account info <account_id>")
+        elif cmd == 'order':
+            if len(parts) == 2 and parts[1].lower() == 'book':
+                order_execution.display_order_book()
+            else:
+                print("Invalid command. Usage: order book")
+        elif cmd in ['buy', 'sell']:
+            if len(parts) >= 4:
+                action = cmd
+                account_id = parts[1]
+                ticker = parts[2].upper()
+                if not stock_info.is_valid_ticker(ticker):
+                    print(f"Error: {ticker} is not a valid ticker.")
+                    continue
+                try:
+                    quantity = float(parts[3])
+                    if quantity <= 0:
+                        print("Error: Quantity must be a positive number.")
+                        continue
+                except ValueError:
+                    print("Error: Quantity must be a number.")
+                    continue
 
-        # Check pending orders after each command
-        order_execution.check_pending_orders()
+                order_type = 'market'
+                price = None
+
+                if len(parts) >= 5:
+                    order_type = parts[4].lower()
+                    if order_type not in ['market', 'limit']:
+                        print("Error: Order type must be 'market' or 'limit'.")
+                        continue
+                if len(parts) == 6:
+                    try:
+                        price = float(parts[5])
+                        if price <= 0:
+                            print("Error: Price must be a positive number.")
+                            continue
+                    except ValueError:
+                        print("Error: Price must be a number.")
+                        continue
+
+                # Create order
+                order = {
+                    'action': action,
+                    'account_id': account_id,
+                    'ticker': ticker,
+                    'quantity': quantity,
+                    'order_type': order_type,
+                    'price': price,
+                    'timestamp': datetime.now()
+                }
+
+                # Validate order
+                if order_type == 'limit' and price is None:
+                    print("Error: Limit orders require a price.")
+                    continue
+                if order_type == 'market' and price is not None:
+                    print("Error: Market orders should not have a price.")
+                    continue
+
+                # Add order to order book
+                order_added = order_execution.add_order(order, account_manager)
+                if not order_added:
+                    continue  # Skip to the next command
+
+                # Attempt to match orders immediately
+                order_execution.match_orders(ticker, account_manager)
+            else:
+                print("Invalid command. Usage: buy/sell <account_id> <ticker> <quantity> [order_type] [price]")
+        else:
+            print("Unknown command. Type 'help' to see available commands.")
 
 if __name__ == '__main__':
     main()
