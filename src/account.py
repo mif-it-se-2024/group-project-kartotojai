@@ -1,71 +1,38 @@
 import json
 
-class Account:
-    def __init__(self, account_file='account.json'):
+class AccountManager:
+    def __init__(self, account_file='accounts.json'):
         self.account_file = account_file
-        self.load_account()
+        self.load_accounts()
 
-    def load_account(self):
+    def load_accounts(self):
         try:
             with open(self.account_file, 'r') as file:
-                data = json.load(file)
-                self.balance = data['balance']
-                self.positions = data['positions']
-                self.transactions = data['transactions']
+                self.accounts = json.load(file)
         except FileNotFoundError:
-            self.balance = 10000.00  # Starting balance
-            self.positions = {}
-            self.transactions = []
+            self.accounts = {}
 
-    def save_account(self):
+    def save_accounts(self):
         with open(self.account_file, 'w') as file:
-            json.dump({
-                'balance': self.balance,
-                'positions': self.positions,
-                'transactions': self.transactions
-            }, file, indent=4)
+            json.dump(self.accounts, file, indent=4)
 
-    def add_position(self, ticker, quantity, price):
-        if ticker in self.positions:
-            total_quantity = self.positions[ticker]['quantity'] + quantity
-            total_cost = (self.positions[ticker]['average_cost'] * self.positions[ticker]['quantity']) + (price * quantity)
-            average_cost = total_cost / total_quantity
-            self.positions[ticker]['quantity'] = total_quantity
-            self.positions[ticker]['average_cost'] = average_cost
-        else:
-            self.positions[ticker] = {'quantity': quantity, 'average_cost': price}
+    def get_account(self, account_id):
+        account_id = str(account_id)
+        if account_id not in self.accounts:
+            
+            self.accounts[account_id] = {
+                'balance': 10000.0,
+                'positions': {}
+            }
+            self.save_accounts()
+        return self.accounts[account_id]
 
-    def remove_position(self, ticker, quantity):
-        if ticker in self.positions and self.positions[ticker]['quantity'] >= quantity:
-            self.positions[ticker]['quantity'] -= quantity
-            if self.positions[ticker]['quantity'] == 0:
-                del self.positions[ticker]
-        else:
-            print("Error removing position.")
+    def update_account(self, account_id, account_data):
+        self.accounts[str(account_id)] = account_data
+        self.save_accounts()
 
-    def has_position(self, ticker, quantity):
-        return ticker in self.positions and self.positions[ticker]['quantity'] >= quantity
-
-    def display_balance(self):
-        print(f"Current Balance: {self.balance}")
-        print("Current Positions:")
-        for ticker, pos in self.positions.items():
-            print(f"{ticker}: Quantity: {pos['quantity']}, Average Cost: {pos['average_cost']}")
-
-    def display_transactions(self):
-        print("Transaction History:")
-        for txn in self.transactions:
-            print(txn)
-
-    def add_transaction(self, order):
-        transaction = {
-            'timestamp': order['timestamp'],
-            'action': order['action'],
-            'ticker': order['ticker'],
-            'quantity': order['quantity'],
-            'order_type': order['order_type'],
-            'price': order['price'],
-            'status': order['status']
-        }
-        self.transactions.append(transaction)
-        self.save_account()
+    def display_account(self, account_id):
+        account = self.get_account(account_id)
+        print(f"Account {account_id}:")
+        print(f"  Balance: {account['balance']}")
+        print(f"  Positions: {account['positions']}")
