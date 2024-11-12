@@ -1,18 +1,23 @@
-import json
-
 class StockInfo:
-    def __init__(self, stock_file='stocks.json'):
-        self.stock_file = stock_file
-        self.load_stocks()
+    def __init__(self):
+        self.stocks = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'TSLA']
 
-    def load_stocks(self):
-        with open(self.stock_file, 'r') as file:
-            self.stocks = json.load(file)
-
-    def get_stock(self, ticker):
-        return self.stocks.get(ticker.upper(), None)
+    def is_valid_ticker(self, ticker):
+        return ticker in self.stocks
 
     def display_stocks(self):
         print("Available Stocks:")
-        for ticker, info in self.stocks.items():
-            print(f"{ticker}: Price: {info['price']}, Market Cap: {info.get('market_cap', 'N/A')}, Dividend Yield: {info.get('dividend_yield', 'N/A')}")
+        for stock in self.stocks:
+            print(f"- {stock}")
+
+    def display_stock_info(self, ticker, order_book):
+        if not self.is_valid_ticker(ticker):
+            print(f"{ticker} is not a valid ticker.")
+            return
+        print(f"Stock Info for {ticker}:")
+        best_bid, best_ask = order_book.get_best_bid_ask(ticker)
+        if best_bid is not None or best_ask is not None:
+            print(f"  Best Bid (Buy Price): {best_bid if best_bid is not None else 'N/A'}")
+            print(f"  Best Ask (Sell Price): {best_ask if best_ask is not None else 'N/A'}")
+        else:
+            print("  No orders available for this stock.")
