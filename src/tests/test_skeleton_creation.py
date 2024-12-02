@@ -1,7 +1,7 @@
 import pytest
-from src.stock_info import StockInfo
-from src.order_execution import OrderBook
-from src.account import AccountManager
+from stock_info import StockInfo
+from order_execution import OrderBook
+from account import AccountManager
 
 @pytest.fixture
 def stock_info():
