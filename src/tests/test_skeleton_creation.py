@@ -1,26 +1,21 @@
 import pytest
-import sys
-sys.path.insert(0, "C:/Users/auste/Desktop/Projektas2")
-from unittest.mock import patch
 from stock_info import StockInfo
-from order_book import OrderBook
+from order_execution import OrderBook
 from account import AccountManager
 
 @pytest.fixture
 def stock_info():
-    with patch.object(StockInfo, '__init__', lambda x: None):
-        stock_info = StockInfo()
-        stock_info.stocks = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'TSLA'] 
+    stock_info = StockInfo()
+    stock_info.stocks = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'TSLA'] 
     return stock_info
 
 @pytest.fixture
 def account_manager():
-    with patch.object(AccountManager, 'load_accounts', lambda x: None):
-        account_manager = AccountManager()
-        account_manager.accounts = {
+    account_manager = AccountManager()
+    account_manager.accounts = {
             "1": {"balance": 10000.0, "positions": {"AAPL": 10}},
             "2": {"balance": 15000.0, "positions": {"MSFT": 5}}
-        }  
+    }  
     return account_manager
 
 def test_stock_info_skeleton(stock_info):
