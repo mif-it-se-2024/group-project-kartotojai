@@ -1,11 +1,64 @@
-# order_book.py
 from collections import deque
+import json
+import os
+from datetime import datetime
 
 class OrderBook:
-    def __init__(self):
+    def __init__(self, stock_info, unmatched_orders_file='unmatched_orders.json', executed_trades_file='executed_trades.json'):
+        self.stock_info = stock_info
         self.buy_orders = {}   # {ticker: deque of buy orders}
         self.sell_orders = {}  # {ticker: deque of sell orders}
         self.last_trade_price = {}  # {ticker: last execution price}
+        self.unmatched_orders_file = unmatched_orders_file
+        self.executed_trades_file = executed_trades_file
+
+        self.load_unmatched_orders()
+
+    def load_unmatched_orders(self):
+        if os.path.exists(self.unmatched_orders_file):
+            with open(self.unmatched_orders_file, 'r') as f:
+                data = json.load(f)
+                self.buy_orders = {}
+                self.sell_orders = {}
+                for ticker, orders in data.get('buy_orders', {}).items():
+                    self.buy_orders[ticker] = deque()
+                    for order in orders:
+                        # Convert 'timestamp' from string to datetime
+                        order['timestamp'] = datetime.fromisoformat(order['timestamp'])
+                        self.buy_orders[ticker].append(order)
+                for ticker, orders in data.get('sell_orders', {}).items():
+                    self.sell_orders[ticker] = deque()
+                    for order in orders:
+                        order['timestamp'] = datetime.fromisoformat(order['timestamp'])
+                        self.sell_orders[ticker].append(order)
+        else:
+            self.buy_orders = {}
+            self.sell_orders = {}
+
+    def save_unmatched_orders(self):
+        def serialize_order(order):
+            order_copy = order.copy()
+            order_copy['timestamp'] = order_copy['timestamp'].isoformat()
+            return order_copy
+
+        data = {
+            'buy_orders': {ticker: [serialize_order(order) for order in orders] for ticker, orders in self.buy_orders.items()},
+            'sell_orders': {ticker: [serialize_order(order) for order in orders] for ticker, orders in self.sell_orders.items()}
+        }
+        with open(self.unmatched_orders_file, 'w') as f:
+            json.dump(data, f, indent=4)
+
+    def save_executed_trade(self, trade_info):
+        # Append trade_info to the executed trades file
+        try:
+            with open(self.executed_trades_file, 'r') as f:
+                executed_trades = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            executed_trades = []
+
+        executed_trades.append(trade_info)
+        with open(self.executed_trades_file, 'w') as f:
+            json.dump(executed_trades, f, indent=4)
 
     def get_best_price(self, action, ticker):
         if action == 'buy':
@@ -20,7 +73,7 @@ class OrderBook:
                 limit_orders = [o for o in self.buy_orders[ticker] if o['order_type'] == 'limit']
                 if limit_orders:
                     return max(o['price'] for o in limit_orders)
-        return self.last_trade_price.get(ticker)
+        return self.last_trade_price.get(ticker, self.stock_info.get_initial_price(ticker))
 
     def add_order(self, order, account_manager):
         ticker = order['ticker']
@@ -38,17 +91,13 @@ class OrderBook:
             print("Error: Limit orders require a positive price.")
             return False
 
-        # Validate sell orders: check if the account has enough shares
+        # Remove validation to allow short selling
+        # (Commented out the block that prevents selling more shares than owned)
         if order['action'] == 'sell':
             positions = account['positions']
             if positions.get(ticker, 0) < order['quantity']:
                 print(f"Error: Account {account_id} does not have enough shares to sell.")
                 return False  # Do not add the order
-        elif order['action'] == 'buy':
-            pass  # No validation needed for buy orders here
-        else:
-            print(f"Error: Unknown action '{order['action']}'")
-            return False
 
         # Add order to the appropriate order book
         if order['action'] == 'buy':
@@ -61,6 +110,7 @@ class OrderBook:
             self.sell_orders[ticker].append(order)
 
         print("Order added to the order book.")
+        self.save_unmatched_orders()
         return True
 
     def match_orders(self, ticker, account_manager):
@@ -129,17 +179,11 @@ class OrderBook:
                     # Update seller's account
                     seller_account = account_manager.get_account(sell_order['account_id'])
                     seller_positions = seller_account['positions']
-                    if seller_positions.get(ticker, 0) >= exec_quantity or sell_order['order_type'] == 'market':
-                        seller_positions[ticker] = seller_positions.get(ticker, 0) - exec_quantity
-                        seller_account['balance'] += total_cost
-                        if seller_positions.get(ticker, 0) == 0:
-                            del seller_positions[ticker]
-                        account_manager.update_account(sell_order['account_id'], seller_account)
-                    else:
-                        print(f"Account {sell_order['account_id']} has insufficient shares.")
-                        sell_orders.remove(sell_order)
-                        matched = True
-                        break  # Proceed to next sell order
+                    seller_positions[ticker] = seller_positions.get(ticker, 0) - exec_quantity
+                    seller_account['balance'] += total_cost
+                    if seller_positions.get(ticker, 0) == 0:
+                        del seller_positions[ticker]
+                    account_manager.update_account(sell_order['account_id'], seller_account)
 
                     # Update order quantities
                     buy_order['quantity'] -= exec_quantity
@@ -149,6 +193,17 @@ class OrderBook:
                     self.last_trade_price[ticker] = execution_price
 
                     print(f"Executed {exec_quantity} shares of {ticker} at {execution_price} between Account {buy_order['account_id']} (buy) and Account {sell_order['account_id']} (sell).")
+
+                    # Save executed trade
+                    trade_info = {
+                        'ticker': ticker,
+                        'price': execution_price,
+                        'quantity': exec_quantity,
+                        'buy_account_id': buy_order['account_id'],
+                        'sell_account_id': sell_order['account_id'],
+                        'timestamp': datetime.now().isoformat()
+                    }
+                    self.save_executed_trade(trade_info)
 
                     # Remove filled orders
                     if buy_order['quantity'] == 0:
@@ -169,6 +224,9 @@ class OrderBook:
         self.buy_orders[ticker] = buy_orders
         self.sell_orders[ticker] = sell_orders
 
+        # Save unmatched orders
+        self.save_unmatched_orders()
+
     def display_order_book(self):
         print("Order Book:")
         for ticker in set(self.buy_orders.keys()).union(self.sell_orders.keys()):
@@ -181,6 +239,45 @@ class OrderBook:
             for order in self.sell_orders.get(ticker, []):
                 price_display = 'Market' if order['order_type'] == 'market' else order['price']
                 print(f"  Account {order['account_id']} wants to sell {order['quantity']} at {price_display}")
+
+    def display_executed_trades(self):
+        try:
+            with open(self.executed_trades_file, 'r') as f:
+                executed_trades = json.load(f)
+                if not executed_trades:
+                    print("No executed trades found.")
+                    return
+                print("Executed Trades:")
+                for trade in executed_trades:
+                    print(f"Timestamp: {trade.get('timestamp', 'N/A')}")
+                    print(f"  Ticker: {trade.get('ticker', 'N/A')}")
+                    print(f"  Price: {trade.get('price', 'N/A')}")
+                    print(f"  Quantity: {trade.get('quantity', 'N/A')}")
+                    print(f"  Buyer Account ID: {trade.get('buy_account_id', 'N/A')}")
+                    print(f"  Seller Account ID: {trade.get('sell_account_id', 'N/A')}")
+                    print()
+        except (FileNotFoundError, json.JSONDecodeError):
+            print("No executed trades found.")
+
+    def export_executed_trades(self, filename):
+        try:
+            with open(self.executed_trades_file, 'r') as f:
+                executed_trades = json.load(f)
+                if not executed_trades:
+                    print("No executed trades to export.")
+                    return
+                with open(filename, 'w') as out_file:
+                    for trade in executed_trades:
+                        out_file.write(f"Timestamp: {trade.get('timestamp', 'N/A')}\n")
+                        out_file.write(f"  Ticker: {trade.get('ticker', 'N/A')}\n")
+                        out_file.write(f"  Price: {trade.get('price', 'N/A')}\n")
+                        out_file.write(f"  Quantity: {trade.get('quantity', 'N/A')}\n")
+                        out_file.write(f"  Buyer Account ID: {trade.get('buy_account_id', 'N/A')}\n")
+                        out_file.write(f"  Seller Account ID: {trade.get('sell_account_id', 'N/A')}\n")
+                        out_file.write("\n")
+                print(f"Executed trades exported to {filename}.")
+        except (FileNotFoundError, json.JSONDecodeError):
+            print("No executed trades found.")
 
     def get_best_bid_ask(self, ticker):
         # Get best bid (highest buy price) and best ask (lowest sell price)
