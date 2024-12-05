@@ -24,11 +24,13 @@ def main():
 Available Commands:
 - buy <account_id> <ticker> <quantity> [order_type] [price]
 - sell <account_id> <ticker> <quantity> [order_type] [price]
+- cancel <account_id> <order_id>
 - stock info [<ticker>]
 - account info <account_id>
 - order book
 - executed trades display
 - executed trades export <filename>
+- executed trades delete <trade_id>
 - exit
 """)
         elif cmd == 'exit':
@@ -61,14 +63,26 @@ Available Commands:
                 elif len(parts) == 4 and parts[2].lower() == 'export':
                     filename = parts[3]
                     order_book.export_executed_trades(filename)
+                elif len(parts) == 4 and parts[2].lower() == 'delete':
+                    trade_id = parts[3]
+                    order_book.delete_executed_trade(trade_id, account_manager)
                 else:
                     print("Invalid command. Usage:")
                     print("  executed trades display")
                     print("  executed trades export <filename>")
+                    print("  executed trades delete <trade_id>")
             else:
                 print("Invalid command. Usage:")
                 print("  executed trades display")
                 print("  executed trades export <filename>")
+                print("  executed trades delete <trade_id>")
+        elif cmd == 'cancel':
+            if len(parts) == 3:
+                account_id = parts[1]
+                order_id = parts[2]
+                order_book.cancel_order(account_id, order_id)
+            else:
+                print("Invalid command. Usage: cancel <account_id> <order_id>")
         elif cmd in ['buy', 'sell']:
             if len(parts) >= 4:
                 action = cmd
