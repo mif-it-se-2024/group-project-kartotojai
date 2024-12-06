@@ -18,6 +18,7 @@ import pytest
 from unittest.mock import patch
 from order_execution import OrderBook
 from account import AccountManager
+from datetime import datetime, timedelta
 
 @pytest.fixture
 def order_book():
@@ -35,16 +36,16 @@ def account_manager():
 
 # 1. Valid BUY order with a matching SELL order
 def test_valid_buy_matching_sell(order_book, account_manager):
-    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit'}
-    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit'}
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
+    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
     order_book.add_order(buy_order, account_manager)
     result = order_book.add_order(sell_order, account_manager)
     assert result is True, "Matching orders should execute successfully"
 
 # 2. Partial matching for BUY and SELL orders
 def test_partial_matching_buy_sell(order_book, account_manager):
-    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 15, 'price': 150.0, 'account_id': '1', 'order_type': 'limit'}
-    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit'}
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 15, 'price': 150.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
+    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
     order_book.add_order(buy_order, account_manager)
     result = order_book.add_order(sell_order, account_manager)
     assert result is True, "Partial matching should update quantities"
@@ -53,28 +54,28 @@ def test_partial_matching_buy_sell(order_book, account_manager):
 
 # 3. BUY order with no matching SELL order
 def test_buy_no_matching_sell(order_book, account_manager):
-    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 140.0, 'account_id': '1', 'order_type': 'limit'}
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 140.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
     result = order_book.add_order(buy_order, account_manager)
     assert result is True, "Valid buy order should be stored"
 
 # 4. Invalid BUY order
 def test_invalid_buy_order(order_book, account_manager):
-    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': -10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit'}
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': -10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
     result = order_book.add_order(buy_order, account_manager)
     assert result is False, "Invalid buy order should be rejected"
 
 # 5. Valid SELL order with a matching BUY order
 def test_valid_sell_matching_buy(order_book, account_manager):
-    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit'}
-    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit'}
+    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
     order_book.add_order(sell_order, account_manager)
     result = order_book.add_order(buy_order, account_manager)
     assert result is True, "Matching orders should execute successfully"
 
 # 6. Partial matching for SELL and BUY orders
 def test_partial_matching_sell_buy(order_book, account_manager):
-    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 15, 'price': 150.0, 'account_id': '2', 'order_type': 'limit'}
-    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit'}
+    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 15, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
     order_book.add_order(sell_order, account_manager)
     result = order_book.add_order(buy_order, account_manager)
     assert result is True, "Partial matching should update quantities"
@@ -83,34 +84,34 @@ def test_partial_matching_sell_buy(order_book, account_manager):
 
 # 7. SELL order with no matching BUY order
 def test_sell_no_matching_buy(order_book, account_manager):
-    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 160.0, 'account_id': '2', 'order_type': 'limit'}
+    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 160.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
     result = order_book.add_order(sell_order, account_manager)
     assert result is True, "Valid sell order should be stored"
 
 # 8. Invalid SELL order
 def test_invalid_sell_order(order_book, account_manager):
-    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': -10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit'}
+    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': -10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
     result = order_book.add_order(sell_order, account_manager)
     assert result is False, "Invalid sell order should be rejected"
 
 # 9. Valid STOP order triggering
 def test_valid_stop_order_trigger(order_book, account_manager):
-    stop_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'stop_price': 145.0, 'account_id': '2', 'order_type': 'stop'}
+    stop_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'stop_price': 145.0, 'account_id': '2', 'order_type': 'stop', 'timestamp': datetime.now()}
     order_book.add_order(stop_order, account_manager)
     order_book.update_market_price('AAPL', 145.0)
     assert len(order_book.sell_orders["AAPL"]) > 0, "Stop order should be triggered and moved to sell queue"
 
 # 10. STOP order with an invalid stop price
 def test_invalid_stop_order(order_book, account_manager):
-    stop_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'stop_price': -145.0, 'account_id': '2', 'order_type': 'stop'}
+    stop_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'stop_price': -145.0, 'account_id': '2', 'order_type': 'stop', 'timestamp': datetime.now()}
     result = order_book.add_order(stop_order, account_manager)
     assert result is False, "Invalid stop order should be rejected"
 
 # 11. Multiple matching orders
 def test_multiple_matching_orders(order_book, account_manager):
-    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 20, 'price': 150.0, 'account_id': '1', 'order_type': 'limit'}
-    sell_order_1 = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit'}
-    sell_order_2 = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit'}
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 20, 'price': 150.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
+    sell_order_1 = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
+    sell_order_2 = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
     order_book.add_order(buy_order, account_manager)
     order_book.add_order(sell_order_1, account_manager)
     result = order_book.add_order(sell_order_2, account_manager)
@@ -127,7 +128,7 @@ def test_order_book_prioritization(order_book, account_manager):
         'price': 150.0,
         'account_id': '2',
         'order_type': 'limit',
-        'timestamp': "2023-12-01 12:00:00",
+        'timestamp': datetime.now() - timedelta(days=1),
     }
     order_book.add_order(old_sell_order, account_manager)
 
@@ -139,7 +140,7 @@ def test_order_book_prioritization(order_book, account_manager):
         'price': 150.0,
         'account_id': '2',
         'order_type': 'limit',
-        'timestamp': "2023-12-02 12:00:00",
+        'timestamp': datetime.now(),
     }
     order_book.add_order(new_sell_order, account_manager)
 
@@ -151,6 +152,7 @@ def test_order_book_prioritization(order_book, account_manager):
         'price': 150.0,
         'account_id': '1',
         'order_type': 'limit',
+        'timestamp': datetime.now(),
     }
     order_book.add_order(buy_order, account_manager)
 
@@ -169,6 +171,7 @@ def test_orders_are_saved_correctly(order_book, account_manager):
         'price': 150.0,
         'account_id': '1',
         'order_type': 'limit',
+        'timestamp': datetime.now(),
     }
     order_book.add_order(buy_order, account_manager)
 
@@ -180,6 +183,7 @@ def test_orders_are_saved_correctly(order_book, account_manager):
         'price': 150.0,
         'account_id': '2',
         'order_type': 'limit',
+        'timestamp': datetime.now(),
     }
     order_book.add_order(sell_order, account_manager)
 
