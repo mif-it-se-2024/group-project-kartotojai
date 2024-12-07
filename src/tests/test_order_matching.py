@@ -19,10 +19,15 @@ from unittest.mock import patch
 from order_execution import OrderBook
 from account import AccountManager
 from datetime import datetime, timedelta
+from stock_info import StockInfo
 
 @pytest.fixture
-def order_book():
-    return OrderBook()
+def stock_info():
+    return StockInfo()
+
+@pytest.fixture
+def order_book(stock_info):
+    return OrderBook(stock_info)
 
 @pytest.fixture
 def account_manager():
