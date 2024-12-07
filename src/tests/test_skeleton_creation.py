@@ -27,8 +27,8 @@ def test_stock_info_skeleton(stock_info):
     assert hasattr(stock_info, 'display_stock_info'), "StockInfo class should have a method 'display_stock_info'"
     assert callable(getattr(stock_info, 'display_stock_info', None)), "'display_stock_info' should be a method"
 
-def test_order_book_skeleton():
-    order_book = OrderBook()
+def test_order_book_skeleton(stock_info):
+    order_book = OrderBook(stock_info)
     assert hasattr(order_book, 'buy_orders'), "OrderBook class should have an attribute 'buy_orders'"
     assert hasattr(order_book, 'sell_orders'), "OrderBook class should have an attribute 'sell_orders'"
     assert hasattr(order_book, 'last_trade_price'), "OrderBook class should have an attribute 'last_trade_price'"
