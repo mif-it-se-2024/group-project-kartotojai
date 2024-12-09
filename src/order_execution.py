@@ -1,15 +1,17 @@
-#order_execution.py
 from collections import deque
 import json
 import os
 from datetime import datetime
-import uuid  # Import for generating unique trade IDs
+import uuid  # For generating unique trade IDs
 
 class OrderBook:
-    def __init__(self, stock_info, unmatched_orders_file='unmatched_orders.json', executed_trades_file='executed_trades.json'):
+    def __init__(self, stock_info, unmatched_orders_file='unmatched_orders.json',
+                 executed_trades_file='executed_trades.json'):
         self.stock_info = stock_info
         self.buy_orders = {}   # {ticker: deque of buy orders}
         self.sell_orders = {}  # {ticker: deque of sell orders}
+        self.stop_buy_orders = {}   # {ticker: list of stop buy orders}
+        self.stop_sell_orders = {}  # {ticker: list of stop sell orders}
         self.last_trade_price = {}  # {ticker: last execution price}
         self.unmatched_orders_file = unmatched_orders_file
         self.executed_trades_file = executed_trades_file
@@ -22,12 +24,12 @@ class OrderBook:
                 data = json.load(f)
                 self.buy_orders = {}
                 self.sell_orders = {}
+                self.stop_buy_orders = {}
+                self.stop_sell_orders = {}
                 for ticker, orders in data.get('buy_orders', {}).items():
                     self.buy_orders[ticker] = deque()
                     for order in orders:
-                        # Convert 'timestamp' from string to datetime
                         order['timestamp'] = datetime.fromisoformat(order['timestamp'])
-                        # Assign 'order_id' if missing
                         if 'order_id' not in order:
                             order_id = f"{order['account_id']}_{ticker}_{int(order['timestamp'].timestamp())}"
                             order['order_id'] = order_id
@@ -36,16 +38,34 @@ class OrderBook:
                     self.sell_orders[ticker] = deque()
                     for order in orders:
                         order['timestamp'] = datetime.fromisoformat(order['timestamp'])
-                        # Assign 'order_id' if missing
                         if 'order_id' not in order:
                             order_id = f"{order['account_id']}_{ticker}_{int(order['timestamp'].timestamp())}"
                             order['order_id'] = order_id
                         self.sell_orders[ticker].append(order)
-            # Save the orders back to the file with 'order_id's assigned
-            self.save_unmatched_orders()
+                # Load stop buy orders
+                for ticker, orders in data.get('stop_buy_orders', {}).items():
+                    self.stop_buy_orders[ticker] = []
+                    for order in orders:
+                        order['timestamp'] = datetime.fromisoformat(order['timestamp'])
+                        if 'order_id' not in order:
+                            order_id = f"{order['account_id']}_{ticker}_{int(order['timestamp'].timestamp())}"
+                            order['order_id'] = order_id
+                        self.stop_buy_orders[ticker].append(order)
+                # Load stop sell orders
+                for ticker, orders in data.get('stop_sell_orders', {}).items():
+                    self.stop_sell_orders[ticker] = []
+                    for order in orders:
+                        order['timestamp'] = datetime.fromisoformat(order['timestamp'])
+                        if 'order_id' not in order:
+                            order_id = f"{order['account_id']}_{ticker}_{int(order['timestamp'].timestamp())}"
+                            order['order_id'] = order_id
+                        self.stop_sell_orders[ticker].append(order)
+                self.save_unmatched_orders()
         else:
             self.buy_orders = {}
             self.sell_orders = {}
+            self.stop_buy_orders = {}
+            self.stop_sell_orders = {}
 
     def save_unmatched_orders(self):
         def serialize_order(order):
@@ -54,8 +74,14 @@ class OrderBook:
             return order_copy
 
         data = {
-            'buy_orders': {ticker: [serialize_order(order) for order in orders] for ticker, orders in self.buy_orders.items()},
-            'sell_orders': {ticker: [serialize_order(order) for order in orders] for ticker, orders in self.sell_orders.items()}
+            'buy_orders': {ticker: [serialize_order(order) for order in orders]
+                           for ticker, orders in self.buy_orders.items()},
+            'sell_orders': {ticker: [serialize_order(order) for order in orders]
+                            for ticker, orders in self.sell_orders.items()},
+            'stop_buy_orders': {ticker: [serialize_order(order) for order in orders]
+                                for ticker, orders in self.stop_buy_orders.items()},
+            'stop_sell_orders': {ticker: [serialize_order(order) for order in orders]
+                                 for ticker, orders in self.stop_sell_orders.items()},
         }
         with open(self.unmatched_orders_file, 'w') as f:
             json.dump(data, f, indent=4)
@@ -63,8 +89,6 @@ class OrderBook:
     def save_executed_trade(self, trade_info):
         # Assign a unique trade_id
         trade_info['trade_id'] = str(uuid.uuid4())
-
-        # Append trade_info to the executed trades file
         try:
             with open(self.executed_trades_file, 'r') as f:
                 executed_trades = json.load(f)
@@ -99,46 +123,66 @@ class OrderBook:
         if order['quantity'] <= 0:
             print("Error: Quantity must be positive.")
             return False
-        if order['order_type'] not in ['market', 'limit']:
-            print("Error: Order type must be 'market' or 'limit'.")
+        if order['order_type'] not in ['market', 'limit', 'stop_market', 'stop_limit']:
+            print("Error: Invalid order type.")
             return False
         if order['order_type'] == 'limit' and (order['price'] is None or order['price'] <= 0):
             print("Error: Limit orders require a positive price.")
             return False
 
-        # Validate that the seller has enough shares
+        # Validate that the seller has enough shares if it's a sell
         if order['action'] == 'sell':
             positions = account['positions']
             if positions.get(ticker, 0) < order['quantity']:
                 print(f"Error: Account {account_id} does not have enough shares to sell.")
-                return False  # Do not add the order
+                return False
 
-        # Assign a unique order ID
-        order_id = f"{order['account_id']}_{ticker}_{int(order['timestamp'].timestamp())}"
-        order['order_id'] = order_id
+        # Assign a unique order ID if not already assigned
+        if 'order_id' not in order:
+            order_id = f"{order['account_id']}_{ticker}_{int(order['timestamp'].timestamp())}"
+            order['order_id'] = order_id
 
-        # Add order to the appropriate order book
-        if order['action'] == 'buy':
-            if ticker not in self.buy_orders:
-                self.buy_orders[ticker] = deque()
-            self.buy_orders[ticker].append(order)
-        elif order['action'] == 'sell':
-            if ticker not in self.sell_orders:
-                self.sell_orders[ticker] = deque()
-            self.sell_orders[ticker].append(order)
+        if order['order_type'] in ['stop_market', 'stop_limit']:
+            if order['stop_price'] is None or order['stop_price'] <= 0:
+                print("Error: Stop orders require a positive stop price.")
+                return False
+            if order['order_type'] == 'stop_limit' and (order['price'] is None or order['price'] <= 0):
+                print("Error: Stop limit orders require a positive limit price.")
+                return False
+            # Add order to stop orders
+            if order['action'] == 'buy':
+                if ticker not in self.stop_buy_orders:
+                    self.stop_buy_orders[ticker] = []
+                self.stop_buy_orders[ticker].append(order)
+            elif order['action'] == 'sell':
+                if ticker not in self.stop_sell_orders:
+                    self.stop_sell_orders[ticker] = []
+                self.stop_sell_orders[ticker].append(order)
+            print(f"Stop order added with Order ID: {order['order_id']}")
+            self.save_unmatched_orders()
+            return True
+        else:
+            # Add order to the appropriate order book
+            if order['action'] == 'buy':
+                if ticker not in self.buy_orders:
+                    self.buy_orders[ticker] = deque()
+                self.buy_orders[ticker].append(order)
+            elif order['action'] == 'sell':
+                if ticker not in self.sell_orders:
+                    self.sell_orders[ticker] = deque()
+                self.sell_orders[ticker].append(order)
 
-        print(f"Order added to the order book with Order ID: {order_id}")
-        self.save_unmatched_orders()
-        return True
+            print(f"Order added to the order book with Order ID: {order['order_id']}")
+            self.save_unmatched_orders()
+            return True
 
     def cancel_order(self, account_id, order_id):
         found = False
-
         # Search in buy orders
         for ticker, orders in self.buy_orders.items():
-            for order in list(orders):
-                if order['order_id'] == order_id and order['account_id'] == account_id:
-                    orders.remove(order)
+            for ord in list(orders):
+                if ord['order_id'] == order_id and ord['account_id'] == account_id:
+                    orders.remove(ord)
                     found = True
                     print(f"Order {order_id} canceled.")
                     break
@@ -148,9 +192,9 @@ class OrderBook:
         # Search in sell orders if not found in buy orders
         if not found:
             for ticker, orders in self.sell_orders.items():
-                for order in list(orders):
-                    if order['order_id'] == order_id and order['account_id'] == account_id:
-                        orders.remove(order)
+                for ord in list(orders):
+                    if ord['order_id'] == order_id and ord['account_id'] == account_id:
+                        orders.remove(ord)
                         found = True
                         print(f"Order {order_id} canceled.")
                         break
@@ -162,38 +206,63 @@ class OrderBook:
 
         self.save_unmatched_orders()
 
+    def cancel_stop_order(self, account_id, order_id):
+        found = False
+        for ticker, orders in self.stop_buy_orders.items():
+            for ord in list(orders):
+                if ord['order_id'] == order_id and ord['account_id'] == account_id:
+                    orders.remove(ord)
+                    found = True
+                    print(f"Stop order {order_id} canceled.")
+                    break
+            if found:
+                break
+        if not found:
+            for ticker, orders in self.stop_sell_orders.items():
+                for ord in list(orders):
+                    if ord['order_id'] == order_id and ord['account_id'] == account_id:
+                        orders.remove(ord)
+                        found = True
+                        print(f"Stop order {order_id} canceled.")
+                        break
+                if found:
+                    break
+        if not found:
+            print(f"Stop Order ID {order_id} not found for Account {account_id}.")
+        self.save_unmatched_orders()
+
     def match_orders(self, ticker, account_manager):
+        old_price = self.last_trade_price.get(ticker, self.stock_info.get_initial_price(ticker))
+
         buy_orders = self.buy_orders.get(ticker, deque())
         sell_orders = self.sell_orders.get(ticker, deque())
 
-        # Sort orders
+        # Sort buy orders: market orders first, then highest limit price first, then earliest
         buy_orders = deque(sorted(buy_orders, key=lambda o: (
             o['order_type'] != 'market',
             -o.get('price', float('inf')) if o.get('price') else float('inf'),
             o['timestamp']
         )))
+        # Sort sell orders: market orders first, then lowest limit price first, then earliest
         sell_orders = deque(sorted(sell_orders, key=lambda o: (
             o['order_type'] != 'market',
             o.get('price', 0) if o.get('price') else 0,
             o['timestamp']
         )))
 
-        # Try to match orders
+        trade_executed = False
         while buy_orders and sell_orders:
             matched = False
             for buy_order in list(buy_orders):
                 for sell_order in list(sell_orders):
                     if buy_order['account_id'] == sell_order['account_id']:
-                        continue  # Skip matching orders from the same account
+                        continue  # skip same-account trades
 
                     execution_price = None
 
-                    # Determine execution price
                     if buy_order['order_type'] == 'market' and sell_order['order_type'] == 'market':
-                        # Use last trade price or cannot match
                         execution_price = self.last_trade_price.get(ticker)
                         if execution_price is None:
-                            # Can't determine price, skip this pair
                             continue
                     elif buy_order['order_type'] == 'market' and sell_order['order_type'] == 'limit':
                         execution_price = sell_order['price']
@@ -203,16 +272,15 @@ class OrderBook:
                         if buy_order['price'] >= sell_order['price']:
                             execution_price = sell_order['price']
                         else:
-                            continue  # Prices do not overlap
+                            continue
                     else:
-                        continue  # Invalid order types
+                        continue
 
                     exec_quantity = min(buy_order['quantity'], sell_order['quantity'])
 
                     # Update buyer's account
                     buyer_account = account_manager.get_account(buy_order['account_id'])
                     total_cost = exec_quantity * execution_price
-
                     if buyer_account['balance'] >= total_cost:
                         buyer_account['balance'] -= total_cost
                         buyer_positions = buyer_account['positions']
@@ -222,8 +290,9 @@ class OrderBook:
                         print(f"Account {buy_order['account_id']} has insufficient balance.")
                         buy_orders.remove(buy_order)
                         matched = True
-                        break  # Proceed to next buy order
+                        break
 
+                    # Update seller's account
                     seller_account = account_manager.get_account(sell_order['account_id'])
                     seller_positions = seller_account['positions']
                     seller_positions[ticker] = seller_positions.get(ticker, 0) - exec_quantity
@@ -232,16 +301,17 @@ class OrderBook:
                         del seller_positions[ticker]
                     account_manager.update_account(sell_order['account_id'], seller_account)
 
+                    # Update order quantities
                     buy_order['quantity'] -= exec_quantity
                     sell_order['quantity'] -= exec_quantity
 
+                    # Update last trade price
                     self.last_trade_price[ticker] = execution_price
 
                     print(f"Executed {exec_quantity} shares of {ticker} at {execution_price} between Account {buy_order['account_id']} (buy) and Account {sell_order['account_id']} (sell).")
 
-                    # Save executed trade
                     trade_info = {
-                        'trade_id': '',  # Will be assigned in save_executed_trade
+                        'trade_id': '',
                         'ticker': ticker,
                         'price': execution_price,
                         'quantity': exec_quantity,
@@ -251,27 +321,89 @@ class OrderBook:
                     }
                     self.save_executed_trade(trade_info)
 
-                    # Remove filled orders
+                    trade_executed = True
+
                     if buy_order['quantity'] == 0:
                         buy_orders.remove(buy_order)
                     if sell_order['quantity'] == 0:
                         sell_orders.remove(sell_order)
 
                     matched = True
-                    break  # Break inner loop to proceed with updated order lists
+                    break
 
                 if matched:
-                    break  # Break outer loop to restart matching with updated lists
+                    break
 
             if not matched:
-                break  # No more matches possible
+                break
 
-        # Update the order books
         self.buy_orders[ticker] = buy_orders
         self.sell_orders[ticker] = sell_orders
-
-        # Save unmatched orders
         self.save_unmatched_orders()
+
+        if trade_executed:
+            current_price = self.last_trade_price.get(ticker, old_price)
+            self.check_stop_orders(ticker, current_price, account_manager)
+
+    def check_stop_orders(self, ticker, current_price, account_manager):
+        # Trigger Stop Buy Orders if current_price >= stop_price
+        triggered_buy_orders = []
+        for order in self.stop_buy_orders.get(ticker, []):
+            if current_price >= order['stop_price']:
+                triggered_buy_orders.append(order)
+
+        for order in triggered_buy_orders:
+            self.stop_buy_orders[ticker].remove(order)
+            new_order = order.copy()
+            if order['order_type'] == 'stop_market':
+                new_order['order_type'] = 'market'
+                new_order['price'] = None
+            elif order['order_type'] == 'stop_limit':
+                # Remain limit with the given price
+                new_order['order_type'] = 'limit'
+
+            if ticker not in self.sell_orders and new_order['action'] == 'sell':
+                self.sell_orders[ticker] = deque()
+            if ticker not in self.buy_orders and new_order['action'] == 'buy':
+                self.buy_orders[ticker] = deque()
+
+            if new_order['action'] == 'buy':
+                self.buy_orders[ticker].append(new_order)
+            else:  # should not happen for buy trigger, but let's keep logic consistent
+                self.sell_orders[ticker].append(new_order)
+            print(f"Stop buy order {order['order_id']} triggered.")
+
+        # Trigger Stop Sell Orders if current_price <= stop_price
+        triggered_sell_orders = []
+        for order in self.stop_sell_orders.get(ticker, []):
+            if current_price <= order['stop_price']:
+                triggered_sell_orders.append(order)
+
+        for order in triggered_sell_orders:
+            self.stop_sell_orders[ticker].remove(order)
+            new_order = order.copy()
+            if order['order_type'] == 'stop_market':
+                new_order['order_type'] = 'market'
+                new_order['price'] = None
+            elif order['order_type'] == 'stop_limit':
+                new_order['order_type'] = 'limit'
+
+            if ticker not in self.sell_orders and new_order['action'] == 'sell':
+                self.sell_orders[ticker] = deque()
+            if ticker not in self.buy_orders and new_order['action'] == 'buy':
+                self.buy_orders[ticker] = deque()
+
+            if new_order['action'] == 'sell':
+                self.sell_orders[ticker].append(new_order)
+            else:  # should not happen for sell trigger, but let's keep logic consistent
+                self.buy_orders[ticker].append(new_order)
+            print(f"Stop sell order {order['order_id']} triggered.")
+
+        self.save_unmatched_orders()
+
+        # **New Code**: Attempt to immediately match triggered orders
+        # Now that we have placed triggered orders into the book, let's try to match them.
+        self.match_orders(ticker, account_manager)
 
     def display_order_book(self):
         print("Order Book:")
@@ -285,6 +417,19 @@ class OrderBook:
             for order in self.sell_orders.get(ticker, []):
                 price_display = 'Market' if order['order_type'] == 'market' else order['price']
                 print(f"  Order ID: {order['order_id']} | Account {order['account_id']} wants to sell {order['quantity']} at {price_display}")
+
+    def display_stop_orders(self):
+        print("Stop Orders:")
+        for ticker in set(self.stop_buy_orders.keys()).union(self.stop_sell_orders.keys()):
+            print(f"\nTicker: {ticker}")
+            print("Stop Buy Orders:")
+            for order in self.stop_buy_orders.get(ticker, []):
+                limit_price_display = f" Limit Price: {order['price']}" if order['order_type'] == 'stop_limit' else ''
+                print(f"  Order ID: {order['order_id']} | Account {order['account_id']} wants to buy {order['quantity']} at Stop Price: {order['stop_price']}{limit_price_display}")
+            print("Stop Sell Orders:")
+            for order in self.stop_sell_orders.get(ticker, []):
+                limit_price_display = f" Limit Price: {order['price']}" if order['order_type'] == 'stop_limit' else ''
+                print(f"  Order ID: {order['order_id']} | Account {order['account_id']} wants to sell {order['quantity']} at Stop Price: {order['stop_price']}{limit_price_display}")
 
     def display_executed_trades(self):
         try:
@@ -328,7 +473,6 @@ class OrderBook:
             print("No executed trades found.")
 
     def delete_executed_trade(self, trade_id, account_manager):
-        # Load executed trades
         try:
             with open(self.executed_trades_file, 'r') as f:
                 executed_trades = json.load(f)
@@ -336,7 +480,6 @@ class OrderBook:
             print("No executed trades found.")
             return
 
-        # Find the trade with the given trade_id
         trade_to_delete = None
         for trade in executed_trades:
             if trade.get('trade_id') == trade_id:
@@ -347,19 +490,18 @@ class OrderBook:
             print(f"Trade ID {trade_id} not found.")
             return
 
-        # Reverse the trade's effect on buyer and seller accounts
         ticker = trade_to_delete.get('ticker')
         price = trade_to_delete.get('price')
         quantity = trade_to_delete.get('quantity')
         buy_account_id = trade_to_delete.get('buy_account_id')
         sell_account_id = trade_to_delete.get('sell_account_id')
 
-        # Get buyer and seller accounts
+        # Reverse the trade effects
         buyer_account = account_manager.get_account(buy_account_id)
         seller_account = account_manager.get_account(sell_account_id)
 
-        # Reverse buyer's account
         total_cost = price * quantity
+        # Reverse buyer
         buyer_account['balance'] += total_cost
         buyer_positions = buyer_account['positions']
         if buyer_positions.get(ticker, 0) >= quantity:
@@ -370,7 +512,7 @@ class OrderBook:
             print(f"Error: Buyer Account {buy_account_id} does not have enough shares to reverse the trade.")
             return
 
-        # Reverse seller's account
+        # Reverse seller
         if seller_account['balance'] >= total_cost:
             seller_account['balance'] -= total_cost
             seller_positions = seller_account['positions']
@@ -379,21 +521,16 @@ class OrderBook:
             print(f"Error: Seller Account {sell_account_id} does not have enough balance to reverse the trade.")
             return
 
-        # Update accounts
         account_manager.update_account(buy_account_id, buyer_account)
         account_manager.update_account(sell_account_id, seller_account)
 
-        # Remove the trade from executed_trades
         executed_trades.remove(trade_to_delete)
-
-        # Save the updated executed_trades back to the file
         with open(self.executed_trades_file, 'w') as f:
             json.dump(executed_trades, f, indent=4)
 
         print(f"Trade ID {trade_id} has been deleted and accounts have been updated.")
 
     def get_best_bid_ask(self, ticker):
-        # Get best bid (highest buy price) and best ask (lowest sell price)
         best_bid = None
         best_ask = None
 
