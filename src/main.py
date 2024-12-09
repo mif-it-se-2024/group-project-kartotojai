@@ -24,10 +24,16 @@ def main():
 Available Commands:
 - buy <account_id> <ticker> <quantity> [order_type] [price]
 - sell <account_id> <ticker> <quantity> [order_type] [price]
+- stop buy <account_id> <ticker> <quantity> market <stop_price>
+- stop sell <account_id> <ticker> <quantity> market <stop_price>
+- stop buy <account_id> <ticker> <quantity> limit <stop_price> <limit_price>
+- stop sell <account_id> <ticker> <quantity> limit <stop_price> <limit_price>
 - cancel <account_id> <order_id>
+- cancel stop <account_id> <order_id>
 - stock info [<ticker>]
 - account info <account_id>
 - order book
+- order stop book
 - executed trades display
 - executed trades export <filename>
 - executed trades delete <trade_id>
@@ -54,8 +60,12 @@ Available Commands:
         elif cmd == 'order':
             if len(parts) == 2 and parts[1].lower() == 'book':
                 order_book.display_order_book()
+            elif len(parts) == 3 and parts[1].lower() == 'stop' and parts[2].lower() == 'book':
+                order_book.display_stop_orders()
             else:
-                print("Invalid command. Usage: order book")
+                print("Invalid command. Usage:")
+                print("  order book")
+                print("  order stop book")
         elif cmd == 'executed':
             if len(parts) >= 2 and parts[1].lower() == 'trades':
                 if len(parts) == 3 and parts[2].lower() == 'display':
@@ -81,8 +91,90 @@ Available Commands:
                 account_id = parts[1]
                 order_id = parts[2]
                 order_book.cancel_order(account_id, order_id)
+            elif len(parts) == 4 and parts[1].lower() == 'stop':
+                account_id = parts[2]
+                order_id = parts[3]
+                order_book.cancel_stop_order(account_id, order_id)
             else:
-                print("Invalid command. Usage: cancel <account_id> <order_id>")
+                print("Invalid command. Usage:")
+                print("  cancel <account_id> <order_id>")
+                print("  cancel stop <account_id> <order_id>")
+        elif cmd == 'stop':
+            if len(parts) >= 6:
+                action = parts[1].lower()
+                if action not in ['buy', 'sell']:
+                    print("Error: Action must be 'buy' or 'sell'.")
+                    continue
+                account_id = parts[2]
+                ticker = parts[3].upper()
+                if not stock_info.is_valid_ticker(ticker):
+                    print(f"Error: {ticker} is not a valid ticker.")
+                    continue
+                try:
+                    quantity = float(parts[4])
+                    if quantity <= 0:
+                        print("Error: Quantity must be positive.")
+                        continue
+                except ValueError:
+                    print("Error: Quantity must be a number.")
+                    continue
+                order_subtype = parts[5].lower()
+                if order_subtype == 'market':
+                    if len(parts) == 7:
+                        try:
+                            stop_price = float(parts[6])
+                            if stop_price <= 0:
+                                print("Error: Stop price must be positive.")
+                                continue
+                        except ValueError:
+                            print("Error: Stop price must be a number.")
+                            continue
+                        order_type = 'stop_market'
+                        price = None
+                    else:
+                        print("Usage: stop buy/sell <account_id> <ticker> <quantity> market <stop_price>")
+                        continue
+                elif order_subtype == 'limit':
+                    if len(parts) == 8:
+                        try:
+                            stop_price = float(parts[6])
+                            limit_price = float(parts[7])
+                            if stop_price <= 0 or limit_price <= 0:
+                                print("Error: Prices must be positive.")
+                                continue
+                        except ValueError:
+                            print("Error: Prices must be numbers.")
+                            continue
+                        order_type = 'stop_limit'
+                        price = limit_price
+                    else:
+                        print("Usage: stop buy/sell <account_id> <ticker> <quantity> limit <stop_price> <limit_price>")
+                        continue
+                else:
+                    print("Error: Order type must be 'market' or 'limit'.")
+                    continue
+                # Create stop order
+                order = {
+                    'action': action,
+                    'account_id': account_id,
+                    'ticker': ticker,
+                    'quantity': quantity,
+                    'order_type': order_type,
+                    'price': price,  # For stop_limit orders
+                    'stop_price': stop_price,
+                    'timestamp': datetime.now()
+                }
+                # Assign unique order_id
+                order_id = f"{order['account_id']}_{ticker}_{int(order['timestamp'].timestamp())}"
+                order['order_id'] = order_id
+                # Add order to order book
+                order_added = order_book.add_order(order, account_manager)
+                if not order_added:
+                    continue
+            else:
+                print("Invalid command. Usage:")
+                print("  stop buy/sell <account_id> <ticker> <quantity> market <stop_price>")
+                print("  stop buy/sell <account_id> <ticker> <quantity> limit <stop_price> <limit_price>")
         elif cmd in ['buy', 'sell']:
             if len(parts) >= 4:
                 action = cmd
