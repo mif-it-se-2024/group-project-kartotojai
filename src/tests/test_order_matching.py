@@ -12,6 +12,13 @@
 # 11. Multiple matching orders (a single order matches multiple opposing orders).
 # 12. Order book prioritization based on older orders.
 # 13. Verifying orders are saved correctly.
+# 14. Detailed multiple matching orders with varying prices and quantities.
+# 15. Rejected BUY order due to insufficient balance.
+# 16. Rejected SELL order due to insufficient stock.
+# 17. Order cancellation.
+# 18. Orders with zero quantity.
+# 19. Matching orders with price priority.
+# 20. FIFO priority for orders with same price.
 
 
 import pytest
@@ -206,3 +213,76 @@ def test_orders_are_saved_correctly(order_book, account_manager):
     stored_sell_order = order_book.sell_orders["AAPL"][0]
     assert stored_sell_order["quantity"] == 10, "Sell order quantity should match"
     assert stored_sell_order["price"] == 150.0, "Sell order price should match"
+
+# 14. Detailed multiple matching orders with varying prices and quantities
+def test_multiple_matching_orders_detailed(order_book, account_manager):
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 25, 'price': 155.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
+    sell_order_1 = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
+    sell_order_2 = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 15, 'price': 155.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
+    order_book.add_order(buy_order, account_manager)
+    order_book.add_order(sell_order_1, account_manager)
+    remaining_buy_orders = sum(order["quantity"] for order in order_book.buy_orders.get("AAPL", []))
+    assert remaining_buy_orders == 15, "Remaining BUY order should still be in the order book"
+    result_2 = order_book.add_order(sell_order_2, account_manager)
+    assert result_2 is True, "Second SELL order should match the remaining BUY order"
+    remaining_sell_orders = sum(order["quantity"] for order in order_book.sell_orders.get("AAPL", []))
+    assert remaining_sell_orders == 0, "All SELL orders should be matched"
+    assert account_manager.accounts["1"]["positions"].get("AAPL", 0) == 25, "BUY account should now own the purchased shares"
+    assert account_manager.accounts["2"]["positions"].get("AAPL", 0) == 75, "SELL account should lose the sold shares"
+    assert account_manager.accounts["1"]["balance"] < 10000.0, "BUY account balance should decrease"
+    assert account_manager.accounts["2"]["balance"] > 10000.0, "SELL account balance should increase"
+
+# 15. Rejected BUY order due to insufficient balance
+def test_buy_order_rejected_insufficient_balance(order_book, account_manager):
+    account_manager.accounts["1"]["balance"] = 100.0  # Not enough for the order
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
+    result = execute_order(order_book, buy_order, account_manager)
+    assert result is False, "Buy order should be rejected due to insufficient balance"
+
+# 16. Rejected SELL order due to insufficient stock
+def test_sell_order_rejected_insufficient_stock(order_book, account_manager):
+    account_manager.accounts["2"]["positions"]["AAPL"] = 0  # No stocks to sell
+    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
+    result = execute_order(order_book, sell_order, account_manager)
+    assert result is False, "Sell order should be rejected due to insufficient stock"
+
+# 17. Order cancellation
+def test_order_cancellation(order_book, account_manager):
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
+    order_id = order_book.add_order(buy_order, account_manager)  # Add the order
+    result = order_book.cancel_order(order_id)  # Cancel the order
+    assert result is True, "Order cancellation should succeed"
+    assert len(order_book.buy_orders.get("AAPL", [])) == 0, "Order book should reflect the cancellation"
+
+# 18. Orders with zero quantity
+def test_order_with_zero_quantity(order_book, account_manager):
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 0, 'price': 150.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
+    result = execute_order(order_book, buy_order, account_manager)
+    assert result is False, "Buy order with zero quantity should be rejected"
+
+    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 0, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
+    result = execute_order(order_book, sell_order, account_manager)
+    assert result is False, "Sell order with zero quantity should be rejected"
+
+# 19. Matching orders with price priority
+def test_price_priority_matching(order_book, account_manager):
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 155.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
+    sell_order = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
+    execute_order(order_book, sell_order, account_manager)
+    result = execute_order(order_book, buy_order, account_manager)
+    assert result is True, "Higher-priced buy order should match lower-priced sell order"
+    assert len(order_book.sell_orders.get("AAPL", [])) == 0, "Sell orders should be matched completely"
+
+# 20. FIFO priority for orders with same price
+def test_fifo_priority_matching(order_book, account_manager):
+    sell_order_1 = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now() - timedelta(seconds=10)}
+    sell_order_2 = {'action': 'sell', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '2', 'order_type': 'limit', 'timestamp': datetime.now()}
+    buy_order = {'action': 'buy', 'ticker': 'AAPL', 'quantity': 10, 'price': 150.0, 'account_id': '1', 'order_type': 'limit', 'timestamp': datetime.now()}
+
+    execute_order(order_book, sell_order_1, account_manager)
+    execute_order(order_book, sell_order_2, account_manager)
+    result = execute_order(order_book, buy_order, account_manager)
+
+    assert result is True, "Matching should prioritize older sell order"
+    remaining_sell_orders = sum(order["quantity"] for order in order_book.sell_orders.get("AAPL", []))
+    assert remaining_sell_orders == 10, "Only one sell order should remain in the book"
