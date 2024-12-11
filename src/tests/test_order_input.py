@@ -357,7 +357,7 @@ def test_order_invalid_account_id(order_book, account_manager):
 # If you wish to test insufficient balance at placement, you'd need to add such logic.
 # As is, the order is accepted even if the buyer doesn't have enough balance at order time.
 def test_buy_order_insufficient_balance(order_book, account_manager):
-    # Large quantity order that would exceed the account's balance if executed
+    # Large quantity order that would exceed the account's balance
     insufficient_balance_order = {
         'action': 'buy',
         'ticker': 'AAPL',
@@ -367,10 +367,9 @@ def test_buy_order_insufficient_balance(order_book, account_manager):
         'order_type': 'limit',
         'timestamp': datetime.now()
     }
-    # The current code does not reject due to insufficient balance at add time, only at match time.
-    # So this will be accepted.
+    # Now that we check buyer's balance at placement, this should be rejected.
     result = order_book.add_order(insufficient_balance_order, account_manager)
-    assert result is True, "Order placement does not check buyer's balance, so it will be accepted."
+    assert result is False, "Order should be rejected due to insufficient balance at placement."
 
 # 22. Order with insufficient holdings (for SELL orders)
 def test_sell_order_insufficient_holdings(order_book, account_manager):
@@ -541,9 +540,9 @@ def test_order_extremely_large_quantity(order_book, account_manager):
         'order_type': 'limit',
         'timestamp': datetime.now()
     }
-    # The order placement doesn't check balance, so this will be accepted.
+    # With the new balance check at placement, this should also be rejected.
     result = order_book.add_order(large_quantity_order, account_manager)
-    assert result is True, "Order with extremely large 'quantity' should be accepted at placement"
+    assert result is False, "Order should be rejected due to insufficient balance for extremely large quantity."
 
 # 34. Order with extremely large 'price' value
 def test_order_extremely_large_price(order_book, account_manager):
