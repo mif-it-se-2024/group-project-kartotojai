@@ -115,138 +115,154 @@ class OrderBook:
         return self.last_trade_price.get(ticker, self.stock_info.get_initial_price(ticker))
 
     def add_order(self, order, account_manager):
-        from datetime import datetime
-        # Validate required fields
+        ticker = order.get('ticker')
+        account_id = order.get('account_id')
+        order_type = order.get('order_type')
+        action = order.get('action')
+
+        # Check required fields
         required_fields = ['action', 'account_id', 'ticker', 'quantity', 'order_type', 'timestamp']
         for field in required_fields:
             if field not in order:
                 print(f"Error: Missing required field '{field}'.")
                 return False
 
-        # Check action
-        action = order['action'].lower()
-        if action not in ['buy', 'sell']:
-            print("Error: 'action' must be 'buy' or 'sell'.")
+        # Validate action
+        if action.lower() not in ['buy', 'sell']:
+            print("Error: Action must be 'buy' or 'sell'.")
             return False
-        order['action'] = action
+        else:
+            order['action'] = action.lower()
 
-        # Check ticker
-        if not self.stock_info.is_valid_ticker(order['ticker']):
-            print(f"Error: {order['ticker']} is not a valid ticker.")
+        # Validate ticker
+        if not self.stock_info.is_valid_ticker(ticker):
+            print(f"Error: {ticker} is not a valid ticker.")
             return False
 
-        # Check timestamp
-        if not isinstance(order['timestamp'], datetime):
+        # Validate order_type
+        if order_type not in ['market', 'limit', 'stop_market', 'stop_limit']:
+            print("Error: Invalid order type.")
+            return False
+
+        # Validate timestamp
+        timestamp = order.get('timestamp')
+        if not isinstance(timestamp, datetime):
             print("Error: 'timestamp' must be a datetime object.")
             return False
-        if order['timestamp'] > datetime.now():
+        if timestamp > datetime.now():
             print("Error: 'timestamp' cannot be in the future.")
             return False
 
-        # Check quantity
+        # Validate account existence and fetch account
+        account = account_manager.get_account(account_id)
+        if not account:
+            print(f"Error: Account {account_id} does not exist.")
+            return False
+
+        # Validate quantity type
         try:
             quantity = float(order['quantity'])
-            if quantity <= 0:
-                print("Error: Quantity must be positive.")
-                return False
-            order['quantity'] = quantity
         except (ValueError, TypeError):
             print("Error: Quantity must be a number.")
             return False
 
-        # Check order type
-        if order['order_type'] not in ['market', 'limit', 'stop_market', 'stop_limit']:
-            print("Error: Invalid order type.")
+        if quantity <= 0:
+            print("Error: Quantity must be positive.")
             return False
 
-        # Validate price for limit and stop_limit
-        if order['order_type'] == 'limit':
+        order['quantity'] = quantity
+
+        # Validate price if needed
+        price_required = (order_type == 'limit' or order_type == 'stop_limit')
+        if price_required:
             if 'price' not in order or order['price'] is None:
-                print("Error: Limit orders require a positive price.")
+                print("Error: Limit or stop_limit orders require a price.")
                 return False
             try:
                 price = float(order['price'])
-                if price <= 0:
-                    print("Error: Limit orders require a positive price.")
-                    return False
-                order['price'] = price
             except (ValueError, TypeError):
-                print("Error: Price must be a valid number.")
+                print("Error: Price must be a number.")
                 return False
-        elif order['order_type'] == 'market':
-            # Market orders should not have a price
-            if 'price' in order and order['price'] is not None:
+            if price <= 0:
+                print("Error: Limit orders require a positive price.")
+                return False
+            order['price'] = price
+        else:
+            if order_type == 'market' and 'price' in order and order['price'] is not None:
                 print("Error: Market orders should not have a price.")
                 return False
 
-        # Validate stop orders
-        if order['order_type'] in ['stop_market', 'stop_limit']:
+        # Validate stop_price if stop order
+        if order_type in ['stop_market', 'stop_limit']:
             if 'stop_price' not in order:
-                print("Error: Stop orders require a positive stop price.")
+                print("Error: Stop orders require a stop_price.")
                 return False
             try:
                 stop_price = float(order['stop_price'])
-                if stop_price <= 0:
-                    print("Error: Stop price must be positive.")
-                    return False
-                order['stop_price'] = stop_price
             except (ValueError, TypeError):
                 print("Error: Stop price must be a number.")
                 return False
-
-            if order['order_type'] == 'stop_limit':
-                if 'price' not in order or order['price'] is None:
-                    print("Error: Stop limit orders require a positive limit price.")
-                    return False
-                try:
-                    limit_price = float(order['price'])
-                    if limit_price <= 0:
-                        print("Error: Stop limit orders require a positive limit price.")
-                        return False
-                    order['price'] = limit_price
-                except (ValueError, TypeError):
-                    print("Error: Limit price must be a number.")
-                    return False
-
-        # Validate that the seller has enough shares if it's a sell
-        if order['action'] == 'sell':
-            account = account_manager.get_account(order['account_id'])
-            positions = account['positions']
-            if positions.get(order['ticker'], 0) < order['quantity']:
-                print(f"Error: Account {order['account_id']} does not have enough shares to sell.")
+            if stop_price <= 0:
+                print("Error: Stop orders require a positive stop price.")
                 return False
+            order['stop_price'] = stop_price
+
+        # For sell orders, verify that the account has enough shares
+        if order['action'] == 'sell':
+            positions = account['positions']
+            if positions.get(ticker, 0) < quantity:
+                print(f"Error: Account {account_id} does not have enough shares to sell.")
+                return False
+
+        # For buy orders, verify that the account has enough funds
+        if order['action'] == 'buy':
+            if order_type in ['limit', 'stop_limit']:
+                total_cost = quantity * price
+                if account['balance'] < total_cost:
+                    print(f"Error: Account {account_id} does not have enough balance to place this buy order.")
+                    return False
+            elif order_type == 'market':
+                best_ask_price = self.get_best_price('buy', ticker)
+                if best_ask_price is not None:
+                    total_cost = quantity * best_ask_price
+                    if account['balance'] < total_cost:
+                        print(f"Error: Account {account_id} does not have enough balance to place this market order.")
+                        return False
 
         # Assign a unique order ID if not already assigned
         if 'order_id' not in order:
-            order_id = f"{order['account_id']}_{order['ticker']}_{int(order['timestamp'].timestamp())}"
+            order_id = f"{order['account_id']}_{ticker}_{int(timestamp.timestamp())}"
             order['order_id'] = order_id
 
-        # Add order to the appropriate structure
-        if order['order_type'] in ['stop_market', 'stop_limit']:
+        # Add order to the appropriate order list
+        if order_type in ['stop_market', 'stop_limit']:
+            # Add to stop orders
             if order['action'] == 'buy':
-                if order['ticker'] not in self.stop_buy_orders:
-                    self.stop_buy_orders[order['ticker']] = []
-                self.stop_buy_orders[order['ticker']].append(order)
-            elif order['action'] == 'sell':
-                if order['ticker'] not in self.stop_sell_orders:
-                    self.stop_sell_orders[order['ticker']] = []
-                self.stop_sell_orders[order['ticker']].append(order)
+                if ticker not in self.stop_buy_orders:
+                    self.stop_buy_orders[ticker] = []
+                self.stop_buy_orders[ticker].append(order)
+            else:
+                if ticker not in self.stop_sell_orders:
+                    self.stop_sell_orders[ticker] = []
+                self.stop_sell_orders[ticker].append(order)
             print(f"Stop order added with Order ID: {order['order_id']}")
             self.save_unmatched_orders()
             return True
         else:
-            # Market or limit order
+            # Market or Limit order
             if order['action'] == 'buy':
-                if order['ticker'] not in self.buy_orders:
-                    self.buy_orders[order['ticker']] = deque()
-                self.buy_orders[order['ticker']].append(order)
-            elif order['action'] == 'sell':
-                if order['ticker'] not in self.sell_orders:
-                    self.sell_orders[order['ticker']] = deque()
-                self.sell_orders[order['ticker']].append(order)
-
+                if ticker not in self.buy_orders:
+                    self.buy_orders[ticker] = deque()
+                self.buy_orders[ticker].append(order)
+            else:
+                if ticker not in self.sell_orders:
+                    self.sell_orders[ticker] = deque()
+                self.sell_orders[ticker].append(order)
             print(f"Order added to the order book with Order ID: {order['order_id']}")
             self.save_unmatched_orders()
+
+            # Try to match orders immediately
+            self.match_orders(ticker, account_manager)
             return True
 
     def cancel_order(self, account_id, order_id):
@@ -278,6 +294,7 @@ class OrderBook:
             print(f"Order ID {order_id} not found for Account {account_id}.")
 
         self.save_unmatched_orders()
+        return found
 
     def cancel_stop_order(self, account_id, order_id):
         found = False
@@ -303,6 +320,7 @@ class OrderBook:
         if not found:
             print(f"Stop Order ID {order_id} not found for Account {account_id}.")
         self.save_unmatched_orders()
+        return found
 
     def match_orders(self, ticker, account_manager):
         old_price = self.last_trade_price.get(ticker, self.stock_info.get_initial_price(ticker))
@@ -310,13 +328,13 @@ class OrderBook:
         buy_orders = self.buy_orders.get(ticker, deque())
         sell_orders = self.sell_orders.get(ticker, deque())
 
-        # Sort buy orders: market orders first, then highest limit price first, then earliest
+        # Sort buy orders
         buy_orders = deque(sorted(buy_orders, key=lambda o: (
             o['order_type'] != 'market',
             -o.get('price', float('inf')) if o.get('price') else float('inf'),
             o['timestamp']
         )))
-        # Sort sell orders: market orders first, then lowest limit price first, then earliest
+        # Sort sell orders
         sell_orders = deque(sorted(sell_orders, key=lambda o: (
             o['order_type'] != 'market',
             o.get('price', 0) if o.get('price') else 0,
@@ -432,14 +450,13 @@ class OrderBook:
                 new_order['order_type'] = 'market'
                 new_order['price'] = None
             elif order['order_type'] == 'stop_limit':
-                # Remain limit with the given price
                 new_order['order_type'] = 'limit'
 
             if new_order['action'] == 'buy':
                 if ticker not in self.buy_orders:
                     self.buy_orders[ticker] = deque()
                 self.buy_orders[ticker].append(new_order)
-            else:  # should not happen for buy trigger
+            else:
                 if ticker not in self.sell_orders:
                     self.sell_orders[ticker] = deque()
                 self.sell_orders[ticker].append(new_order)
@@ -464,7 +481,7 @@ class OrderBook:
                 if ticker not in self.sell_orders:
                     self.sell_orders[ticker] = deque()
                 self.sell_orders[ticker].append(new_order)
-            else:  # should not happen for sell trigger
+            else:
                 if ticker not in self.buy_orders:
                     self.buy_orders[ticker] = deque()
                 self.buy_orders[ticker].append(new_order)
@@ -474,6 +491,11 @@ class OrderBook:
 
         # Attempt to immediately match triggered orders
         self.match_orders(ticker, account_manager)
+
+    def update_market_price(self, ticker, price, account_manager):
+        """Update the market price and trigger stop orders if conditions met."""
+        self.last_trade_price[ticker] = price
+        self.check_stop_orders(ticker, price, account_manager)
 
     def display_order_book(self):
         print("Order Book:")
@@ -566,7 +588,7 @@ class OrderBook:
         buy_account_id = trade_to_delete.get('buy_account_id')
         sell_account_id = trade_to_delete.get('sell_account_id')
 
-        # Reverse the trade effects
+        # Reverse the trade
         buyer_account = account_manager.get_account(buy_account_id)
         seller_account = account_manager.get_account(sell_account_id)
 
