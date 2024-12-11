@@ -2,6 +2,7 @@ from stock_info import StockInfo
 from account import AccountManager
 from order_execution import OrderBook
 from datetime import datetime
+import os
 
 def main():
     stock_info = StockInfo()
@@ -37,6 +38,7 @@ Available Commands:
 - executed trades display
 - executed trades export <filename>
 - executed trades delete <trade_id>
+- clear all
 - exit
 """)
         elif cmd == 'exit':
@@ -161,7 +163,7 @@ Available Commands:
                     'quantity': quantity,
                     'order_type': order_type,
                     'price': price,  # For stop_limit orders
-                    'stop_price': stop_price,
+                    'stop_price': stop_price if order_type.startswith('stop') else None,
                     'timestamp': datetime.now()
                 }
                 # Assign unique order_id
@@ -238,6 +240,24 @@ Available Commands:
                 order_book.match_orders(ticker, account_manager)
             else:
                 print("Invalid command. Usage: buy/sell <account_id> <ticker> <quantity> [order_type] [price]")
+        elif cmd == 'clear':
+            if len(parts) == 2 and parts[1].lower() == 'all':
+                # Remove unmatched_orders and executed_trades files
+                if os.path.exists(order_book.unmatched_orders_file):
+                    os.remove(order_book.unmatched_orders_file)
+                if os.path.exists(order_book.executed_trades_file):
+                    os.remove(order_book.executed_trades_file)
+
+                # Reset in-memory order books
+                order_book.buy_orders = {}
+                order_book.sell_orders = {}
+                order_book.stop_buy_orders = {}
+                order_book.stop_sell_orders = {}
+                order_book.last_trade_price = {}
+
+                print("All trades cleared. Starting fresh!")
+            else:
+                print("Invalid command. Usage: clear all")
         else:
             print("Unknown command. Type 'help' to see available commands.")
 
