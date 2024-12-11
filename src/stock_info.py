@@ -1,5 +1,5 @@
 class StockInfo:
-    def init(self):
+    def __init__(self):
         self.stocks = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'TSLA']
         self.initial_prices = {
             'AAPL': 150.0,
