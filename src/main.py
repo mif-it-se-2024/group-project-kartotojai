@@ -84,7 +84,7 @@ Available Commands:
 - executed trades display
 - executed trades export <filename>
 - executed trades delete <trade_id>
-- clear all
+- reset
 - exit
 """)
         elif cmd == 'exit':
@@ -286,8 +286,8 @@ Available Commands:
                 order_book.match_orders(ticker, account_manager)
             else:
                 print("Invalid command. Usage: buy/sell <account_id> <ticker> <quantity> [order_type] [price]")
-        elif cmd == 'clear':
-            if len(parts) == 2 and parts[1].lower() == 'all':
+        elif cmd == 'reset':
+            if len(parts) == 1:
                 # Remove unmatched_orders and executed_trades files
                 if os.path.exists(order_book.unmatched_orders_file):
                     os.remove(order_book.unmatched_orders_file)
@@ -309,7 +309,7 @@ Available Commands:
 
                 print("All trades cleared and accounts reset to default!")
             else:
-                print("Invalid command. Usage: clear all")
+                print("Invalid command. Usage: reset")
         else:
             print("Unknown command. Type 'help' to see available commands.")
 
