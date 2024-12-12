@@ -16,23 +16,33 @@ from order_execution import OrderBook
 from stock_info import StockInfo
 from account import AccountManager
 
-def initialize_order_book_and_account_manager():
-    stock_info = StockInfo()
-    account_manager = AccountManager()
-    order_book = OrderBook(stock_info)
-    return order_book, account_manager
+@pytest.fixture(autouse=True)
+def cleanup_files():
+    files_to_clean = [
+        "unmatched_orders.json",  
+        "executed_trades.json",  
+        "accounts.json"          
+    ]
+    for f in files_to_clean:
+        if os.path.exists(f):
+            os.remove(f)
 
 @pytest.fixture
 def setup_resources():
-    order_book, account_manager = initialize_order_book_and_account_manager()
-    # Clean up before test
-    if os.path.exists(order_book.executed_trades_file):
-        with open(order_book.executed_trades_file, 'w') as file:
-            json.dump([], file)
-    yield order_book, account_manager
-    # Clean up after test
-    if os.path.exists(order_book.executed_trades_file):
-        os.remove(order_book.executed_trades_file)
+    stock_info = StockInfo()
+    
+    default_accounts = {
+        "1": {"balance": 50000.0, "positions": {"AAPL": 200, "TSLA": 200, "GOOG": 200, "AMZN": 200, "MSFT": 200}},
+        "2": {"balance": 50000.0, "positions": {"AAPL": 200, "TSLA": 200, "GOOG": 200, "AMZN": 200, "MSFT": 200}},
+        "3": {"balance": 50000.0, "positions": {"AAPL": 200, "TSLA": 200, "GOOG": 200, "AMZN": 200, "MSFT": 200}},
+    }
+    accounts_file = "accounts.json"
+    with open(accounts_file, 'w') as f:
+        json.dump(default_accounts, f, indent=4)
+
+    account_manager = AccountManager()
+    order_book = OrderBook(stock_info)
+    return order_book, account_manager
 
 def read_executed_trades_file(filepath):
     try:
@@ -46,7 +56,6 @@ def place_orders_and_match(order_book, account_manager, orders, ticker):
         order_book.add_order(order, account_manager)
     order_book.match_orders(ticker, account_manager)
 
-# -------------------------- START OF TESTS --------------------------
 
 # Test 1: Full match
 def test_full_match_integration(setup_resources):
@@ -169,5 +178,3 @@ def test_no_match_integration(setup_resources):
     trades = read_executed_trades_file(order_book.executed_trades_file)
 
     assert len(trades) == 0, "No trades should occur if no price overlap."
-
-# -------------------------- END OF TESTS --------------------------
