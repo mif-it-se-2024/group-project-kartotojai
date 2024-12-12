@@ -3,6 +3,7 @@ from account import AccountManager
 from order_execution import OrderBook
 from datetime import datetime
 import os
+import json
 
 def main():
     stock_info = StockInfo()
@@ -11,6 +12,51 @@ def main():
 
     print("Welcome to the Stock Trading Simulator!")
     print("Type 'help' to see available commands.")
+
+    # Predefined default accounts configuration for resetting:
+    default_accounts = {
+        "1": {
+            "balance": 50000.0,
+            "positions": {
+                "AAPL": 200,
+                "TSLA": 200,
+                "GOOG": 200,
+                "AMZN": 200,
+                "MSFT": 200
+            }
+        },
+        "2": {
+            "balance": 50000.0,
+            "positions": {
+                "AAPL": 200,
+                "TSLA": 200,
+                "GOOG": 200,
+                "AMZN": 200,
+                "MSFT": 200
+            }
+        },
+        "3": {
+            "balance": 50000.0,
+            "positions": {
+                "AAPL": 200,
+                "TSLA": 200,
+                "GOOG": 200,
+                "AMZN": 200,
+                "MSFT": 200
+            }
+        },
+        "999": {
+            "balance": 50000.0,
+            "positions": {
+                "AAPL": 200,
+                "TSLA": 200,
+                "GOOG": 200,
+                "AMZN": 200,
+                "MSFT": 200
+            }
+        }
+    }
+
     while True:
         command = input("Enter a command: ").strip()
         parts = command.split()
@@ -255,7 +301,13 @@ Available Commands:
                 order_book.stop_sell_orders = {}
                 order_book.last_trade_price = {}
 
-                print("All trades cleared. Starting fresh!")
+                # Reset accounts.json to default configuration
+                accounts_file = account_manager.account_file
+                with open(accounts_file, 'w') as f:
+                    json.dump(default_accounts, f, indent=4)
+                account_manager.load_accounts()
+
+                print("All trades cleared and accounts reset to default!")
             else:
                 print("Invalid command. Usage: clear all")
         else:
