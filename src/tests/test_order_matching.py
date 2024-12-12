@@ -1,24 +1,26 @@
-# Scenarios for Order Matching System Tests:
-# 1. Valid BUY order with a matching SELL order.
-# 2. Partial matching for BUY and SELL orders.
-# 3. BUY order with no matching SELL order.
-# 4. Invalid BUY order (e.g., negative quantity).
-# 5. Valid SELL order with a matching BUY order.
-# 6. Partial matching for SELL and BUY orders.
-# 7. SELL order with no matching BUY order.
-# 8. Invalid SELL order (e.g., negative quantity).
-# 9. Valid STOP order triggering upon market price condition.
-# 10. STOP order with an invalid stop price (e.g., negative value).
-# 11. Multiple matching orders (a single order matches multiple opposing orders).
-# 12. Order book prioritization based on older orders.
-# 13. Verifying orders are saved correctly.
-# 14. Detailed multiple matching orders with varying prices and quantities.
-# 15. Rejected BUY order due to insufficient balance.
-# 16. Rejected SELL order due to insufficient stock.
-# 17. Order cancellation.
-# 18. Orders with zero quantity.
-# 19. Matching orders with price priority.
-# 20. FIFO priority for orders with same price.
+"""
+Scenarios for Order Matching System Tests:
+ 1. Valid BUY order with a matching SELL order.
+ 2. Partial matching for BUY and SELL orders.
+ 3. BUY order with no matching SELL order.
+ 4. Invalid BUY order (e.g., negative quantity).
+ 5. Valid SELL order with a matching BUY order.
+ 6. Partial matching for SELL and BUY orders.
+ 7. SELL order with no matching BUY order.
+ 8. Invalid SELL order (e.g., negative quantity).
+ 9. Valid STOP order triggering upon market price condition.
+ 10. STOP order with an invalid stop price (e.g., negative value).
+ 11. Multiple matching orders (a single order matches multiple opposing orders).
+ 12. Order book prioritization based on older orders.
+ 13. Verifying orders are saved correctly.
+ 14. Detailed multiple matching orders with varying prices and quantities.
+ 15. Rejected BUY order due to insufficient balance.
+ 16. Rejected SELL order due to insufficient stock.
+ 17. Order cancellation.
+ 18. Orders with zero quantity.
+ 19. Matching orders with price priority.
+ 20. FIFO priority for orders with same price.
+"""
 
 import pytest
 from unittest.mock import patch
