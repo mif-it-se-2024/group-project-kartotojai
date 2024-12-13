@@ -64,9 +64,9 @@ def setup_resources():
             'MSFT': 200
         }
     })
-   account_manager.update_account('3', {
-         'balance': 50000.0,
-         'positions': {
+    account_manager.update_account('3', {
+        'balance': 50000.0,
+        'positions': {
             'AAPL': 200,  
             'TSLA': 200,
             'GOOG': 200,
