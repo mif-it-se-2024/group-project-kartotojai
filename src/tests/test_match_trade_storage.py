@@ -43,7 +43,7 @@ def setup_resources():
     order_book.stop_sell_orders = {}
     order_book.last_trade_price = {}
 
-    # Set up accounts 1 and 2 with sufficient balances and shares
+    # Set up accounts 1, 2 and 3 with sufficient balances and shares
     account_manager.update_account('1', {
         'balance': 50000.0,
         'positions': {
@@ -62,6 +62,16 @@ def setup_resources():
             'GOOG': 200,
             'AMZN': 200,
             'MSFT': 200
+        }
+    })
+   account_manager.update_account('3', {
+    'balance': 50000.0,
+    'positions': {
+        'AAPL': 200,  
+        'TSLA': 200,
+        'GOOG': 200,
+        'AMZN': 200,
+        'MSFT': 200
         }
     })
 
@@ -87,7 +97,6 @@ def place_orders(order_book, account_manager, orders):
     for order in orders:
         order_book.add_order(order, account_manager)
 
-# -------------------------- START OF TESTS --------------------------
 
 # Test 1: Full match
 def test_full_match_integration(setup_resources):
@@ -227,5 +236,3 @@ def test_no_match_integration(setup_resources):
     trades = read_executed_trades_file(order_book.executed_trades_file)
 
     assert len(trades) == 0, "No trades should occur if no price overlap."
-
-# -------------------------- END OF TESTS --------------------------
