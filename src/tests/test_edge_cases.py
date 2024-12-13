@@ -2,6 +2,7 @@ import pytest
 from order_execution import OrderBook
 from account import AccountManager
 from stock_info import StockInfo
+from datetime import datetime
 
 @pytest.fixture
 def setup_environment():
