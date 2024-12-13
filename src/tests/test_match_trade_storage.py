@@ -65,13 +65,13 @@ def setup_resources():
         }
     })
    account_manager.update_account('3', {
-    'balance': 50000.0,
-    'positions': {
-        'AAPL': 200,  
-        'TSLA': 200,
-        'GOOG': 200,
-        'AMZN': 200,
-        'MSFT': 200
+         'balance': 50000.0,
+         'positions': {
+            'AAPL': 200,  
+            'TSLA': 200,
+            'GOOG': 200,
+            'AMZN': 200,
+            'MSFT': 200
         }
     })
 
