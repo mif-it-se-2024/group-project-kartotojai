@@ -7,42 +7,70 @@ Scenarios for Integration of Match and Trade Storage Tests:
    that multiple trades are recorded, reflecting the correct matching logic and storage.
 4. Test a scenario where no trade occurs because prices do not overlap.
 """
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pytest
 import json
-import os
 from datetime import datetime
 from order_execution import OrderBook
 from stock_info import StockInfo
 from account import AccountManager
 
-@pytest.fixture(autouse=True)
-def cleanup_files():
-    files_to_clean = [
-        "unmatched_orders.json",  
-        "executed_trades.json",  
-        "accounts.json"          
-    ]
-    for f in files_to_clean:
-        if os.path.exists(f):
-            os.remove(f)
-
-@pytest.fixture
-def setup_resources():
+def initialize_order_book_and_account_manager():
     stock_info = StockInfo()
-    
-    default_accounts = {
-        "1": {"balance": 50000.0, "positions": {"AAPL": 200, "TSLA": 200, "GOOG": 200, "AMZN": 200, "MSFT": 200}},
-        "2": {"balance": 50000.0, "positions": {"AAPL": 200, "TSLA": 200, "GOOG": 200, "AMZN": 200, "MSFT": 200}},
-        "3": {"balance": 50000.0, "positions": {"AAPL": 200, "TSLA": 200, "GOOG": 200, "AMZN": 200, "MSFT": 200}},
-    }
-    accounts_file = "accounts.json"
-    with open(accounts_file, 'w') as f:
-        json.dump(default_accounts, f, indent=4)
-
     account_manager = AccountManager()
     order_book = OrderBook(stock_info)
     return order_book, account_manager
+
+@pytest.fixture
+def setup_resources():
+    order_book, account_manager = initialize_order_book_and_account_manager()
+
+    # Remove any leftover unmatched and executed trades data
+    if os.path.exists(order_book.unmatched_orders_file):
+        os.remove(order_book.unmatched_orders_file)
+    if os.path.exists(order_book.executed_trades_file):
+        with open(order_book.executed_trades_file, 'w') as file:
+            json.dump([], file)
+
+    # Reset in-memory order books
+    order_book.buy_orders = {}
+    order_book.sell_orders = {}
+    order_book.stop_buy_orders = {}
+    order_book.stop_sell_orders = {}
+    order_book.last_trade_price = {}
+
+    # Set up accounts 1 and 2 with sufficient balances and shares
+    account_manager.update_account('1', {
+        'balance': 50000.0,
+        'positions': {
+            'AAPL': 200,
+            'TSLA': 200,
+            'GOOG': 200,
+            'AMZN': 200,
+            'MSFT': 200
+        }
+    })
+    account_manager.update_account('2', {
+        'balance': 50000.0,
+        'positions': {
+            'AAPL': 200,
+            'TSLA': 200,
+            'GOOG': 200,
+            'AMZN': 200,
+            'MSFT': 200
+        }
+    })
+
+    yield order_book, account_manager
+
+    # Clean up after test
+    if os.path.exists(order_book.executed_trades_file):
+        os.remove(order_book.executed_trades_file)
+
 
 def read_executed_trades_file(filepath):
     try:
@@ -51,14 +79,22 @@ def read_executed_trades_file(filepath):
     except FileNotFoundError:
         return []
 
-def place_orders_and_match(order_book, account_manager, orders, ticker):
+def place_orders(order_book, account_manager, orders):
+    """
+    Place a list of orders in the order book. 
+    Matching is done immediately in add_order(), so no extra matching call is needed.
+    """
     for order in orders:
         order_book.add_order(order, account_manager)
-    order_book.match_orders(ticker, account_manager)
 
+# -------------------------- START OF TESTS --------------------------
 
 # Test 1: Full match
 def test_full_match_integration(setup_resources):
+    """
+    This test checks a perfect full match scenario: 
+    One BUY and one SELL order at the same price and quantity should result in exactly one trade.
+    """
     order_book, account_manager = setup_resources
 
     buy_order = {
@@ -82,7 +118,7 @@ def test_full_match_integration(setup_resources):
         "timestamp": datetime.now()
     }
 
-    place_orders_and_match(order_book, account_manager, [buy_order, sell_order], "AAPL")
+    place_orders(order_book, account_manager, [buy_order, sell_order])
     trades = read_executed_trades_file(order_book.executed_trades_file)
 
     assert len(trades) == 1, "Exactly one trade should result from a perfect full match."
@@ -96,6 +132,11 @@ def test_full_match_integration(setup_resources):
 
 # Test 2: Partial match
 def test_partial_match_integration(setup_resources):
+    """
+    This test checks a partial match scenario:
+    A BUY order (150 shares) and a SELL order (100 shares) at the same price should result 
+    in only one recorded trade, with a quantity equal to the smaller order (100 shares).
+    """
     order_book, account_manager = setup_resources
 
     buy_order = {
@@ -119,10 +160,10 @@ def test_partial_match_integration(setup_resources):
         "timestamp": datetime.now()
     }
 
-    place_orders_and_match(order_book, account_manager, [buy_order, sell_order], "AAPL")
+    place_orders(order_book, account_manager, [buy_order, sell_order])
     trades = read_executed_trades_file(order_book.executed_trades_file)
 
-    assert len(trades) == 1
+    assert len(trades) == 1, "Only one trade should be recorded for a partial match scenario."
     trade = trades[0]
     assert trade["quantity"] == 100
     assert trade["price"] == 150.0
@@ -132,6 +173,10 @@ def test_partial_match_integration(setup_resources):
 
 # Test 3: Multiple orders
 def test_multiple_orders_integration(setup_resources):
+    """
+    Test placing multiple buy and sell orders to ensure multiple trades are recorded 
+    accurately according to the matching rules.
+    """
     order_book, account_manager = setup_resources
 
     orders = [
@@ -141,7 +186,7 @@ def test_multiple_orders_integration(setup_resources):
         {"id": 8, "action": "sell", "ticker": "AAPL", "quantity": 70, "price": 150.0, "account_id": "3", "order_type": "limit", "timestamp": datetime.now()}
     ]
 
-    place_orders_and_match(order_book, account_manager, orders, "AAPL")
+    place_orders(order_book, account_manager, orders)
     trades = read_executed_trades_file(order_book.executed_trades_file)
 
     assert len(trades) >= 2, "Multiple trades should be recorded for multiple matching orders."
@@ -151,6 +196,10 @@ def test_multiple_orders_integration(setup_resources):
 
 # Test 4: No match
 def test_no_match_integration(setup_resources):
+    """
+    Test a scenario where no trade occurs because the buy and sell prices do not overlap.
+    No executed trades should be recorded.
+    """
     order_book, account_manager = setup_resources
 
     buy_order = {
@@ -174,7 +223,9 @@ def test_no_match_integration(setup_resources):
         "timestamp": datetime.now()
     }
 
-    place_orders_and_match(order_book, account_manager, [buy_order, sell_order], "AAPL")
+    place_orders(order_book, account_manager, [buy_order, sell_order])
     trades = read_executed_trades_file(order_book.executed_trades_file)
 
     assert len(trades) == 0, "No trades should occur if no price overlap."
+
+# -------------------------- END OF TESTS --------------------------
