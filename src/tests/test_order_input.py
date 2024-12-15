@@ -36,7 +36,6 @@
 # 35. Order with 'action' as mixed case (e.g., 'Buy').
 
 import pytest
-from unittest.mock import patch
 from order_execution import OrderBook
 from account import AccountManager
 from datetime import datetime, timedelta
