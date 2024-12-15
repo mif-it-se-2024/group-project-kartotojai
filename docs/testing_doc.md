@@ -11,8 +11,6 @@ The following tools and libraries were used for testing:
 
 **flake8:** A code linting tool to ensure adherence to coding standards.
 
-**unittest:** The built-in Python testing module for writing basic unit tests (used for specific cases).
-
 ---
 
 ### Running the Tests
