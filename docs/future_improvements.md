@@ -1,6 +1,6 @@
 # Future Improvements
 
-Our stock trading simulation project has a strong foundation with core functionalities such as order matching, account management and a console-based interaction system. However, there are several improvements that we could implement to further improve our project and add relevant features
+Our order matching system project has a strong foundation with core functionalities such as order matching, account management and a console-based interaction system. However, there are several improvements that we could implement to further improve our project and add relevant features.
 
 ---
 
@@ -29,10 +29,6 @@ Develop features to help users analyze their portfolio performance with metrics 
 #### Multi-User Environment
 
 Enable simultaneous access for multiple users, either through local sessions or by hosting the application on a server. Incorporate authentication and secure user sessions for better usability in collaborative or competitive settings.
-
-#### Audit and Logging
-
-Introduce detailed logging and audit trails for all actions, including order placements, matches, and account changes. This would be essential for debugging and maintaining transparency.
 
 #### Simulation Enhancements
 
