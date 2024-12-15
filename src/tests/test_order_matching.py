@@ -23,7 +23,6 @@ Scenarios for Order Matching System Tests:
 """
 
 import pytest
-from unittest.mock import patch
 from order_execution import OrderBook
 from account import AccountManager
 from datetime import datetime, timedelta
